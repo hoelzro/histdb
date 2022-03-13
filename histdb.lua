@@ -6,6 +6,19 @@ local mod = {
   destroy = function() end,
 }
 
+local COLUMNS = {
+  [0] = 'hostname',
+  'session_id',
+  'timestamp',
+  'history_id',
+  'cwd',
+  'entry',
+  'duration',
+  'exit_status',
+  'yesterday',
+  'today',
+}
+
 function mod.connect(db, args)
   local debug = false
 
@@ -44,8 +57,34 @@ function mod.best_index(vtab, info)
     pretty.print(info)
   end
 
+  local constraint_usage = {}
+  local index_str
+  local next_argv = 1
+
+  for i = 1, #info.constraints do
+    local c = info.constraints[i]
+    local cu = {}
+
+    if c.usable and c.op == 'match' then
+      -- XXX make sure c.column is a matchable column
+      index_str = index_str or {}
+      index_str[#index_str + 1] = string.format('%s-%d', COLUMNS[c.column], next_argv)
+
+      cu.argv_index = next_argv
+      next_argv = next_argv + 1
+      cu.omit = true
+    end
+
+    constraint_usage[i] = cu
+  end
+
+  if index_str then
+    index_str = table.concat(index_str, ':')
+  end
+
   return {
-    constraint_usage = {},
+    constraint_usage = constraint_usage,
+    index_str = index_str,
   }
 end
 
