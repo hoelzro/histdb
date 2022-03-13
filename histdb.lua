@@ -89,19 +89,9 @@ function mod.best_index(vtab, info)
 end
 
 function mod.open(vtab)
-  -- XXX shouldn't this be in filter?
-  local stmt = vtab.db:prepare [[
-    SELECT
-      rowid,
-      *,
-      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
-      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
-    FROM history
-  ]]
-
   return {
+    vtab = vtab,
     debug = vtab.debug,
-    stmt = stmt,
     last_status = sqlite3.ROW,
   }
 end
@@ -118,6 +108,18 @@ function mod.filter(cursor, index_num, index_name, args)
     io.stderr:write(string.format('index name: %s\n', index_name))
     pretty.print(args)
   end
+
+  -- XXX error handling
+  local stmt = cursor.vtab.db:prepare [[
+    SELECT
+      rowid,
+      *,
+      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
+      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
+    FROM history
+  ]]
+
+  cursor.stmt = stmt
 
   return mod.next(cursor)
 end
