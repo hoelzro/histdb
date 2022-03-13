@@ -33,6 +33,8 @@ function mod.connect(db, args)
   }
 end
 
+mod.create = mod.connect
+
 function mod.best_index(vtab, info)
   if vtab.debug then
     local pretty = require 'pretty'
