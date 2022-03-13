@@ -23,7 +23,10 @@ function mod.connect(db, args)
     cwd,
     entry,
     duration,
-    exit_status
+    exit_status,
+
+    yesterday hidden,
+    today hidden
   )
   ]]
 
@@ -48,7 +51,15 @@ end
 
 function mod.open(vtab)
   -- XXX shouldn't this be in filter?
-  local stmt = vtab.db:prepare 'SELECT rowid, * FROM history'
+  local stmt = vtab.db:prepare [[
+    SELECT
+      rowid,
+      *,
+      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
+      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
+    FROM history
+  ]]
+
   return {
     debug = vtab.debug,
     stmt = stmt,
