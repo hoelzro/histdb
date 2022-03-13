@@ -148,8 +148,4 @@ function mod.rowid(cursor)
   return cursor.stmt:get_value(0)
 end
 
-function mod.find_function(vtab, argc, name)
-  io.stderr:write(string.format('find function: %s/%d', name, argc))
-end
-
 return mod
