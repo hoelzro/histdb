@@ -11,5 +11,5 @@ cat <<END_SQLITERC > "$sqliterc"
 select lua_create_module_from_file('histdb.lua');
 END_SQLITERC
 
-sqlite3 -batch -init "$sqliterc" /home/rob/.cache/histdb.db "$@"
+sqlite3 -init "$sqliterc" /home/rob/.cache/histdb.db "$@"
 rm "$sqliterc"
