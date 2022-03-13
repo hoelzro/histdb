@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# XXX build amalgam table (just rebuild if it's missing for now)
+# XXX load SQLite extensions
+
+export LD_LIBRARY_PATH=/home/rob/projects/sqlite-lua-vtable/
+
+sqliterc=$(mktemp ${TMPDIR:-/tmp}/histdb-init.XXXXXX)
+cat <<END_SQLITERC > "$sqliterc"
+.load lua-vtable
+select lua_create_module_from_file('histdb.lua');
+END_SQLITERC
+
+sqlite3 -batch -init "$sqliterc" /home/rob/.cache/histdb.db "$@"
+rm "$sqliterc"
