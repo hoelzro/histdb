@@ -7,6 +7,14 @@ local mod = {
 }
 
 function mod.connect(db, args)
+  local debug = false
+
+  for i = 4, #args do
+    if args[i] == 'debug' then
+      debug = true
+    end
+  end
+
   db:declare_vtab [[CREATE TABLE _ (
     hostname,
     session_id, -- shell PID
@@ -21,10 +29,16 @@ function mod.connect(db, args)
 
   return {
     db = sqlite3.open_ptr(db:get_ptr()),
+    debug = debug,
   }
 end
 
-function mod.best_index()
+function mod.best_index(vtab, info)
+  if vtab.debug then
+    local pretty = require 'pretty'
+    pretty.print(info)
+  end
+
   return {
     constraint_usage = {},
   }
@@ -34,6 +48,7 @@ function mod.open(vtab)
   -- XXX shouldn't this be in filter?
   local stmt = vtab.db:prepare 'SELECT rowid, * FROM history'
   return {
+    debug = vtab.debug,
     stmt = stmt,
     last_status = sqlite3.ROW,
   }
@@ -43,11 +58,23 @@ function mod.close(cursor)
   cursor.stmt:finalize()
 end
 
-function mod.filter(cursor)
+function mod.filter(cursor, index_num, index_name, args)
+  if cursor.debug then
+    local pretty = require 'pretty'
+
+    io.stderr:write(string.format('index num:  %d\n', index_num))
+    io.stderr:write(string.format('index name: %s\n', index_name))
+    pretty.print(args)
+  end
+
   return mod.next(cursor)
 end
 
 function mod.eof(cursor)
+  if cursor.debug then
+    return true
+  end
+
   return cursor.last_status ~= sqlite3.ROW and cursor.last_status ~= sqlite3.BUSY
 end
 
@@ -65,6 +92,10 @@ end
 
 function mod.rowid(cursor)
   return cursor.stmt:get_value(0)
+end
+
+function mod.find_function(vtab, argc, name)
+  io.stderr:write(string.format('find function: %s/%d', name, argc))
 end
 
 return mod

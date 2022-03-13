@@ -9,6 +9,7 @@ sqliterc=$(mktemp ${TMPDIR:-/tmp}/histdb-init.XXXXXX)
 cat <<END_SQLITERC > "$sqliterc"
 .load lua-vtable
 select lua_create_module_from_file('histdb.lua');
+create virtual table temp.h_debug using h(debug);
 END_SQLITERC
 
 sqlite3 -init "$sqliterc" /home/rob/.cache/histdb.db "$@"
