@@ -1,4 +1,8 @@
-local mod = { name = 'h' }
+local mod = {
+  name = 'h',
+  disconnect = function() end,
+  destroy = function() end,
+}
 
 function mod.connect(db, args)
   db:declare_vtab [[CREATE TABLE _ (
