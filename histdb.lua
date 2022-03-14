@@ -103,6 +103,8 @@ end
 local function timestamp_match_expr(expr)
   if expr == 'yesterday' then
     return "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime')"
+  elseif expr == 'today' then
+    return "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime')"
   else
     error 'unable to parse MATCH for timestamp'
   end
