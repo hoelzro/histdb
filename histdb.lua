@@ -31,7 +31,7 @@ function mod.connect(db, args)
   db:declare_vtab [[CREATE TABLE _ (
     hostname,
     session_id, -- shell PID
-    timestamp integer not null,
+    timestamp text not null,
     history_id, -- $HISTCMD
     cwd,
     entry,
@@ -142,7 +142,14 @@ function mod.filter(cursor, index_num, index_name, args)
   local stmt = cursor.vtab.db:prepare([[
     SELECT
       rowid,
-      *,
+      hostname,
+      session_id,
+      DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+      history_id,
+      cwd,
+      entry,
+      duration,
+      exit_status,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
     FROM history
