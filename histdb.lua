@@ -100,6 +100,14 @@ function mod.close(cursor)
   cursor.stmt:finalize()
 end
 
+local function timestamp_match_expr(expr)
+  if expr == 'yesterday' then
+    return "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime')"
+  else
+    error 'unable to parse MATCH for timestamp'
+  end
+end
+
 function mod.filter(cursor, index_num, index_name, args)
   if cursor.debug then
     local pretty = require 'pretty'
@@ -109,15 +117,36 @@ function mod.filter(cursor, index_num, index_name, args)
     pretty.print(args)
   end
 
+  local where_clause = ''
+  if index_name then
+    local conditions = {}
+
+    for column, arg_pos in string.gmatch(index_name, '([^:]+)-(%d+)') do
+      arg_pos = tonumber(arg_pos)
+
+      if column == 'timestamp' then
+        conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos])
+      elseif column == 'cwd' then
+        error 'nyi'
+      elseif column == 'entry' then
+        error 'nyi'
+      end
+    end
+
+    if #conditions > 0 then
+      where_clause = 'WHERE ' .. table.concat(conditions, ' AND ')
+    end
+  end
+
   -- XXX error handling
-  local stmt = cursor.vtab.db:prepare [[
+  local stmt = cursor.vtab.db:prepare([[
     SELECT
       rowid,
       *,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
     FROM history
-  ]]
+  ]] .. where_clause)
 
   cursor.stmt = stmt
 
