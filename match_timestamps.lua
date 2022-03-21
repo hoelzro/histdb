@@ -70,6 +70,64 @@ function mod.parse(expr)
   return captures
 end
 
+local function resolve_datetime(config, datetime, relative_to)
+  -- XXX how am I going to handle timezones?
+  assert(not datetime.time, 'nyi')
+
+  if datetime.date.type == 'relative' then
+    local adjusted_time = relative_to + datetime.date.magnitude * UNIT_TO_SECONDS[datetime.date.unit]
+    local resolution = datetime.date.unit -- XXX is this right?
+
+    local start_time
+
+    if resolution == 'day' then
+      -- XXX how do I handle isdst?
+      local d = os.date('*t', adjusted_time)
+
+      start_time = os.time {
+        year   = d.year,
+        month  = d.month,
+        day    = d.day,
+        hour   = 0,
+        minute = 0,
+        second = 0,
+      }
+    elseif resolution == 'week' then
+      local d = os.date('*t', adjusted_time)
+
+      start_time = os.time {
+        year   = d.year,
+        month  = d.month,
+        day    = d.day,
+        hour   = 0,
+        minute = 0,
+        second = 0,
+      }
+
+      start_time = start_time - 86400 * (d.wday - 1)
+    else
+      error(string.format('invalid resolution %q', resolution))
+    end
+
+    return start_time
+  elseif datetime.date.type == 'absolute' then
+    local now = os.date('*t', relative_to)
+
+    local start_time = os.time {
+      year   = datetime.date.year or now.year,
+      month  = datetime.date.month,
+      day    = datetime.date.day,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    }
+
+    return start_time
+  else
+    error(string.format('invalid date type %q', datetime.date.type))
+  end
+end
+
 -- @param config specifies things like current timezone, timezone overrides, beginning of week, end of subjective day
 -- @return a pair of timestamps, or nil and an error
 function mod.resolve(config, expr, relative_to)
@@ -81,62 +139,14 @@ function mod.resolve(config, expr, relative_to)
   relative_to = relative_to or os.time()
 
   if ast.operator == 'on' then
-    -- XXX how am I going to handle timezones?
-    local operand = ast.operand
-    assert(not operand.time, 'nyi')
+    local start_time = resolve_datetime(config, ast.operand, relative_to)
+    local resolution = ast.operand.date.unit or 'day' -- XXX is this right?
 
-    if operand.date.type == 'relative' then
-      local adjusted_time = relative_to + operand.date.magnitude * UNIT_TO_SECONDS[operand.date.unit]
-      local resolution = operand.date.unit -- XXX is this right?
+    return start_time, start_time + UNIT_TO_SECONDS[resolution]
+  elseif ast.operator == 'since' then
+    local start_time = resolve_datetime(config, ast.operand, relative_to)
 
-      local start_time
-
-      if resolution == 'day' then
-        -- XXX how do I handle isdst?
-        local d = os.date('*t', adjusted_time)
-
-        start_time = os.time {
-          year   = d.year,
-          month  = d.month,
-          day    = d.day,
-          hour   = 0,
-          minute = 0,
-          second = 0,
-        }
-      elseif resolution == 'week' then
-        local d = os.date('*t', adjusted_time)
-
-        start_time = os.time {
-          year   = d.year,
-          month  = d.month,
-          day    = d.day,
-          hour   = 0,
-          minute = 0,
-          second = 0,
-        }
-
-        start_time = start_time - 86400 * (d.wday - 1)
-      else
-        error(string.format('invalid resolution %q', resolution))
-      end
-
-      return start_time, start_time + UNIT_TO_SECONDS[resolution]
-    elseif operand.date.type == 'absolute' then
-      local now = os.date('*t', relative_to)
-
-      local start_time = os.time {
-        year   = operand.date.year or now.year,
-        month  = operand.date.month,
-        day    = operand.date.day,
-        hour   = 0,
-        minute = 0,
-        second = 0,
-      }
-
-      return start_time, start_time + UNIT_TO_SECONDS.day
-    else
-      error(string.format('invalid date type %q', operand.date.type))
-    end
+    return start_time, relative_to
   else
     error(string.format('invalid operator %q', ast.operator))
   end
