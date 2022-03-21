@@ -10,6 +10,11 @@ local NORMALIZED_UNITS = {
   weeks = 'week',
 }
 
+local UNIT_TO_SECONDS = {
+  day  = 60 * 60 * 24,
+  week = 60 * 60 * 24 * 7,
+}
+
 local function relative_date(values)
   local unit = NORMALIZED_UNITS[values.unit] or values.unit
   return {
@@ -63,6 +68,78 @@ function mod.parse(expr)
   end
 
   return captures
+end
+
+-- @param config specifies things like current timezone, timezone overrides, beginning of week, end of subjective day
+-- @return a pair of timestamps, or nil and an error
+function mod.resolve(config, expr, relative_to)
+  local ast, err = mod.parse(expr)
+  if not ast then
+    return nil, err
+  end
+
+  relative_to = relative_to or os.time()
+
+  if ast.operator == 'on' then
+    -- XXX how am I going to handle timezones?
+    local operand = ast.operand
+    assert(not operand.time, 'nyi')
+
+    if operand.date.type == 'relative' then
+      local adjusted_time = relative_to + operand.date.magnitude * UNIT_TO_SECONDS[operand.date.unit]
+      local resolution = operand.date.unit -- XXX is this right?
+
+      local start_time
+
+      if resolution == 'day' then
+        -- XXX how do I handle isdst?
+        local d = os.date('*t', adjusted_time)
+
+        start_time = os.time {
+          year   = d.year,
+          month  = d.month,
+          day    = d.day,
+          hour   = 0,
+          minute = 0,
+          second = 0,
+        }
+      elseif resolution == 'week' then
+        local d = os.date('*t', adjusted_time)
+
+        start_time = os.time {
+          year   = d.year,
+          month  = d.month,
+          day    = d.day,
+          hour   = 0,
+          minute = 0,
+          second = 0,
+        }
+
+        start_time = start_time - 86400 * (d.wday - 1)
+      else
+        error(string.format('invalid resolution %q', resolution))
+      end
+
+      return start_time, start_time + UNIT_TO_SECONDS[resolution]
+    elseif operand.date.type == 'absolute' then
+      local now = os.date('*t', relative_to)
+
+      local start_time = os.time {
+        year   = operand.date.year or now.year,
+        month  = operand.date.month,
+        day    = operand.date.day,
+        hour   = 0,
+        minute = 0,
+        second = 0,
+      }
+
+      return start_time, start_time + UNIT_TO_SECONDS.day
+    else
+      error(string.format('invalid date type %q', operand.date.type))
+    end
+  else
+    error(string.format('invalid operator %q', ast.operator))
+  end
 end
 
 return mod

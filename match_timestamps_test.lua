@@ -1,5 +1,7 @@
+local assert = require 'smart_assert'
 local pretty = require 'pretty'
 local parse = require('match_timestamps').parse
+local resolve = require('match_timestamps').resolve
 
 local function append(t, v)
   local copy = {}
@@ -54,6 +56,15 @@ local function deep_equal(got, expected, path)
   return true
 end
 
+local TEST_TIMESTAMP = os.time {
+  year   = 2022,
+  month  = 3,
+  day    = 18,
+  hour   = 14,
+  minute = 0,
+  second = 0,
+}
+
 local tests = {
   {
     expr = 'yesterday',
@@ -66,6 +77,22 @@ local tests = {
           magnitude = -1,
         },
       },
+    },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 17,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 18,
+      hour   = 0,
+      minute = 0,
+      second = 0,
     },
   },
   {
@@ -80,6 +107,22 @@ local tests = {
         },
       },
     },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 18,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 19,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
   },
   {
     expr = '1 day ago',
@@ -92,6 +135,22 @@ local tests = {
           magnitude = -1,
         },
       },
+    },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 17,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 18,
+      hour   = 0,
+      minute = 0,
+      second = 0,
     },
   },
   {
@@ -106,6 +165,22 @@ local tests = {
         },
       },
     },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 15,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 16,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
   },
   {
     expr = '1 week ago',
@@ -118,6 +193,22 @@ local tests = {
           magnitude = -1,
         },
       },
+    },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 6,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 13,
+      hour   = 0,
+      minute = 0,
+      second = 0,
     },
   },
   {
@@ -132,6 +223,22 @@ local tests = {
         },
       },
     },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 17,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 18,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
   },
   {
     expr = '-1 days',
@@ -144,6 +251,22 @@ local tests = {
           magnitude = -1,
         },
       },
+    },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 17,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 18,
+      hour   = 0,
+      minute = 0,
+      second = 0,
     },
   },
   {
@@ -159,6 +282,22 @@ local tests = {
         },
       },
     },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 1,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 2,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
   },
   {
     expr = '03-01',
@@ -171,6 +310,22 @@ local tests = {
           day   = 1,
         },
       },
+    },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 1,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 2,
+      hour   = 0,
+      minute = 0,
+      second = 0,
     },
   },
   {
@@ -185,6 +340,15 @@ local tests = {
         },
       },
     },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 1,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = TEST_TIMESTAMP,
   },
   {
     expr = 'between 03-01 and 03-10',
@@ -205,6 +369,22 @@ local tests = {
         },
       },
     },
+    expected_min_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 1,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
+    expected_max_timestamp = os.time {
+      year   = 2022,
+      month  = 3,
+      day    = 11,
+      hour   = 0,
+      minute = 0,
+      second = 0,
+    },
   },
 }
 
@@ -223,6 +403,10 @@ for i = 1, #tests do
     pretty.print(t.expected)
     success = false
   end
+
+  local got_min_timestamp, got_max_timestamp = assert(resolve({}, expr, TEST_TIMESTAMP))
+  assert(got_min_timestamp == t.expected_min_timestamp, string.format('Test #%d - %q', i, expr))
+  assert(got_max_timestamp == t.expected_max_timestamp, string.format('Test #%d - %q', i, expr))
 end
 
 if not success then
