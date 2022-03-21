@@ -147,6 +147,12 @@ function mod.resolve(config, expr, relative_to)
     local start_time = resolve_datetime(config, ast.operand, relative_to)
 
     return start_time, relative_to
+  elseif ast.operator == 'between' then
+    local start_time = resolve_datetime(config, ast.lhs, relative_to)
+    local end_time = resolve_datetime(config, ast.rhs, relative_to)
+    local resolution = ast.rhs.date.unit or 'day' -- XXX is this right?
+
+    return start_time, end_time + UNIT_TO_SECONDS[resolution]
   else
     error(string.format('invalid operator %q', ast.operator))
   end
