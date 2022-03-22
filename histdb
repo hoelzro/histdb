@@ -27,12 +27,14 @@ for db in ~/.zsh_history.d/*.db; do
     sqlite3 "$amalgam_sqlite" "ATTACH DATABASE '$db' AS orig; INSERT INTO main.history_before_today ($joined_columns) SELECT $joined_columns FROM orig.history"
 done
 
+amalgam_max_rowid=$(sqlite3 "$amalgam_sqlite" "SELECT MAX(rowid) FROM history_before_today")
+
 export LD_LIBRARY_PATH=/home/rob/projects/sqlite-lua-vtable/
 
 sqliterc=$(mktemp ${TMPDIR:-/tmp}/histdb-init.XXXXXX)
 cat <<END_SQLITERC > "$sqliterc"
 ATTACH DATABASE '$HOME/.zsh_history.d/$todays_db' AS today_db;
-CREATE TEMPORARY VIEW history AS SELECT * FROM history_before_today UNION ALL SELECT * FROM today_db.history;
+CREATE TEMPORARY VIEW history AS SELECT rowid, * FROM history_before_today UNION ALL SELECT rowid + $amalgam_max_rowid, * FROM today_db.history;
 .load lua-vtable
 select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
 create virtual table temp.h_debug using h(debug);
