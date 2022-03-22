@@ -6,16 +6,25 @@ amalgam_sqlite=/home/rob/.cache/histdb.db
 
 todays_db=$(date +'%Y-%m-%d.db')
 
-rm -f "$amalgam_sqlite"
-sqlite3 "$(ls ~/.zsh_history.d/*.db | tail -n 1)" .schema | sqlite3 "$amalgam_sqlite"
-sqlite3 "$amalgam_sqlite" "ALTER TABLE history RENAME TO history_before_today"
+max_date=$(sqlite3 "$amalgam_sqlite" "SELECT DATE(MAX(timestamp), 'unixepoch', 'localtime') FROM history_before_today" 2>/dev/null || true)
+if [[ -z "$max_date" ]] ; then
+    sqlite3 "$(ls ~/.zsh_history.d/*.db | tail -n 1)" .schema | sqlite3 "$amalgam_sqlite"
+    sqlite3 "$amalgam_sqlite" "ALTER TABLE history RENAME TO history_before_today"
+fi
+
 for db in ~/.zsh_history.d/*.db; do
-    if [[ "$(basename "$db")" != "$todays_db" ]] ; then
-        columns=( $(sqlite3 "$db" "SELECT name FROM pragma_table_info('history')") )
-        joined_columns=$(printf '%s, ' "${columns[@]}")
-        joined_columns=${joined_columns%%, }
-        sqlite3 "$amalgam_sqlite" "ATTACH DATABASE '$db' AS orig; INSERT INTO main.history_before_today ($joined_columns) SELECT $joined_columns FROM orig.history"
+    if [[ "$(basename "$db")" == "$todays_db" ]] ; then
+        continue
     fi
+
+    if [[ -n "$max_date" && ( "$(basename "$db")" == "$max_date.db" || "$(basename "$db")" < "$max_date.db" ) ]]; then
+        continue
+    fi
+
+    columns=( $(sqlite3 "$db" "SELECT name FROM pragma_table_info('history')") )
+    joined_columns=$(printf '%s, ' "${columns[@]}")
+    joined_columns=${joined_columns%%, }
+    sqlite3 "$amalgam_sqlite" "ATTACH DATABASE '$db' AS orig; INSERT INTO main.history_before_today ($joined_columns) SELECT $joined_columns FROM orig.history"
 done
 
 export LD_LIBRARY_PATH=/home/rob/projects/sqlite-lua-vtable/
