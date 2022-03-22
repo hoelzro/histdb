@@ -1,16 +1,26 @@
 #!/bin/bash
 
-# XXX build amalgam table (just rebuild if it's missing for now)
-# XXX load SQLite extensions
+set -e -u
+
+amalgam_sqlite=/home/rob/.cache/histdb.db
+
+rm -f "$amalgam_sqlite"
+sqlite3 "$(ls ~/.zsh_history.d/*.db | tail -n 1)" .schema | sqlite3 "$amalgam_sqlite"
+for db in ~/.zsh_history.d/*.db; do
+    columns=( $(sqlite3 "$db" "SELECT name FROM pragma_table_info('history')") )
+    joined_columns=$(printf '%s, ' "${columns[@]}")
+    joined_columns=${joined_columns%%, }
+    sqlite3 "$amalgam_sqlite" "ATTACH DATABASE '$db' AS orig; INSERT INTO main.history ($joined_columns) SELECT $joined_columns FROM orig.history"
+done
 
 export LD_LIBRARY_PATH=/home/rob/projects/sqlite-lua-vtable/
 
 sqliterc=$(mktemp ${TMPDIR:-/tmp}/histdb-init.XXXXXX)
 cat <<END_SQLITERC > "$sqliterc"
 .load lua-vtable
-select lua_create_module_from_file('histdb.lua');
+select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
 create virtual table temp.h_debug using h(debug);
 END_SQLITERC
 
-sqlite3 -init "$sqliterc" /home/rob/.cache/histdb.db "$@"
+sqlite3 -init "$sqliterc" "$amalgam_sqlite" "$@"
 rm "$sqliterc"
