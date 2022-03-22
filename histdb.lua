@@ -140,7 +140,6 @@ function mod.filter(cursor, index_num, index_name, args)
     end
   end
 
-  -- XXX error handling
   local stmt = cursor.vtab.db:prepare([[
     SELECT
       rowid,
@@ -156,6 +155,10 @@ function mod.filter(cursor, index_num, index_name, args)
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
     FROM history
   ]] .. where_clause)
+
+  if not stmt then
+    return nil, cursor.vtab.db:errmsg()
+  end
 
   cursor.stmt = stmt
 
