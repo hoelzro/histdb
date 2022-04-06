@@ -1,5 +1,25 @@
 local sqlite3 = require 'lsqlite3'
 
+local session_id
+
+do
+  local this_pid = 'self'
+  while this_pid ~= '1' do
+    local proc_stat = assert(io.open('/proc/' .. this_pid .. '/stat', 'r'))
+    local line = proc_stat:read '*l'
+    proc_stat:close()
+
+    local pid, comm, parent_pid = string.match(line, "^(%d+)%s+%(([^)]+)%)%s+%S%s+(%d+)")
+
+    if comm ~= 'histdb' and comm ~= 'sqlite3' then
+      session_id = tonumber(pid)
+      break
+    end
+
+    this_pid = parent_pid
+  end
+end
+
 local mod = {
   name = 'h',
   disconnect = function() end,
@@ -136,7 +156,7 @@ function mod.filter(cursor, index_num, index_name, args)
     end
 
     if #conditions > 0 then
-      where_clause = 'WHERE ' .. table.concat(conditions, ' AND ')
+      where_clause = 'AND ' .. table.concat(conditions, ' AND ')
     end
   end
 
@@ -154,11 +174,14 @@ function mod.filter(cursor, index_num, index_name, args)
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
     FROM history
+    WHERE session_id <> ?
   ]] .. where_clause)
 
   if not stmt then
     return nil, cursor.vtab.db:errmsg()
   end
+
+  stmt:bind_values(tostring(session_id))
 
   cursor.stmt = stmt
 
