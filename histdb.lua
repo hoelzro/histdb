@@ -50,7 +50,7 @@ function mod.connect(db, args)
 
   db:declare_vtab [[CREATE TABLE _ (
     hostname,
-    session_id, -- shell PID
+    session_id TEXT, -- shell PID
     timestamp text not null,
     history_id, -- $HISTCMD
     cwd,
