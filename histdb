@@ -39,7 +39,9 @@ cat <<END_SQLITERC > "$sqliterc"
 ATTACH DATABASE '$HOME/.zsh_history.d/$todays_db' AS today_db;
 CREATE TEMPORARY VIEW history AS SELECT rowid, * FROM history_before_today UNION ALL SELECT rowid + $amalgam_max_rowid, * FROM today_db.history;
 .load lua-vtable
+.output /dev/null
 select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
+.output
 create virtual table temp.h_debug using h(debug);
 END_SQLITERC
 
