@@ -43,5 +43,5 @@ select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua')
 create virtual table temp.h_debug using h(debug);
 END_SQLITERC
 
-sqlite3 -init "$sqliterc" "$amalgam_sqlite" "$@"
+sqlite3 -batch -init "$sqliterc" "$amalgam_sqlite" "$@"
 rm "$sqliterc"
