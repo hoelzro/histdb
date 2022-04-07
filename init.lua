@@ -1,4 +1,5 @@
 local sqlite3 = require 'lsqlite3'
+local match_timestamps = require 'match_timestamps'
 
 local session_id
 
@@ -121,13 +122,8 @@ function mod.close(cursor)
 end
 
 local function timestamp_match_expr(expr)
-  if expr == 'yesterday' then
-    return "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime')"
-  elseif expr == 'today' then
-    return "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime')"
-  else
-    error 'unable to parse MATCH for timestamp'
-  end
+  local start_time, end_time = assert(match_timestamps.resolve({}, expr))
+  return string.format("timestamp BETWEEN %d AND %d", start_time, end_time)
 end
 
 function mod.filter(cursor, index_num, index_name, args)
