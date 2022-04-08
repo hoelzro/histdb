@@ -122,8 +122,23 @@ function mod.close(cursor)
 end
 
 local function timestamp_match_expr(expr)
+  -- MATCH 'since yesterday'
+  -- MATCH 'since last week'
+  -- MATCH 'on 2022-03-01'
+  -- MATCH 'between 2022-03-01 and 2022-03-02'
+  -- XXX is "last week" one week ago today, or last Sunday, etc?
+  -- XXX does "yesterday" include an event from 00:15:00 this morning?
+  -- searching by a specific time
   local start_time, end_time = assert(match_timestamps.resolve({}, expr))
   return string.format("timestamp BETWEEN %d AND %d", start_time, end_time)
+end
+
+local function entry_match_expr(expr)
+  local conditions = {}
+  for token in string.gmatch(expr, '(%S+)') do
+    conditions[#conditions+1] = "entry LIKE '%" .. token .. "%'"
+  end
+  return '(' .. table.concat(conditions, ' AND ') .. ')'
 end
 
 function mod.filter(cursor, index_num, index_name, args)
@@ -147,7 +162,7 @@ function mod.filter(cursor, index_num, index_name, args)
       elseif column == 'cwd' then
         error 'nyi'
       elseif column == 'entry' then
-        error 'nyi'
+        conditions[#conditions + 1] = entry_match_expr(args[arg_pos])
       end
     end
 
