@@ -7,7 +7,7 @@ amalgam_sqlite=/home/rob/.cache/histdb.db
 todays_db=$(date +'%Y-%m-%d.db')
 yesterdays_db=$(date +'%Y-%m-%d.db' -d 'yesterday')
 
-max_date=$(sqlite3 "$amalgam_sqlite" "SELECT DATE(MAX(timestamp), 'unixepoch', 'localtime') FROM history_before_today" 2>/dev/null || true)
+max_date=$(sqlite3 "$amalgam_sqlite" "SELECT DATE(MAX(CAST(timestamp AS INTEGER)), 'unixepoch', 'localtime') FROM history_before_today" 2>/dev/null || true)
 if [[ -z "$max_date" ]] ; then
     sqlite3 "$(ls ~/.zsh_history.d/*.db | tail -n 1)" .schema | sqlite3 "$amalgam_sqlite"
     sqlite3 "$amalgam_sqlite" "ALTER TABLE history RENAME TO history_before_today"
