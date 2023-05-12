@@ -42,8 +42,7 @@ local function process_cli_args(args)
   return options
 end
 
-local function write_module(output, module_prefix, module_path)
-  local module_name = string.match(module_path, '(.*)[.]lua$')
+local function write_module(output, module_prefix, module_path, module_name)
 
   local module_src = assert(slurp_file(module_path))
 
@@ -83,11 +82,15 @@ end
 output:write '-- This file is generated via build.lua - do not edit by hand!\n\n'
 
 for i_mod = 1, #options do
-  write_module(output, options.module_prefix, options[i_mod])
+  local module_path = options[i_mod]
+  local module_name = string.match(module_path, '(.*)[.]lua$')
+  write_module(output, options.module_prefix, module_path, module_name)
 end
 
 if options.entrypoint then
-  output:write(assert(slurp_file(options.entrypoint)))
+  write_module(output, options.module_prefix, options.entrypoint, '.entrypoint')
+  output:write 'local m = require ".entrypoint"\n'
+  output:write 'return m\n'
 end
 
 if output ~= io.stdout then
