@@ -38,6 +38,7 @@ local COLUMNS = {
   'exit_status',
   'yesterday',
   'today',
+  'h',
 }
 
 function mod.connect(db, args)
@@ -60,7 +61,8 @@ function mod.connect(db, args)
     exit_status HIDDEN,
 
     yesterday hidden,
-    today hidden
+    today HIDDEN,
+    h HIDDEN
   )
   ]]
 
@@ -147,6 +149,16 @@ local function cwd_match_expr(expr)
   return string.format("cwd LIKE '%%%s%%'", expr)
 end
 
+-- `h MATCH 'foo bar'` means that "foo" must be found between (entry, cwd) and "bar" must be found between (entry, cwd) - but they don't necessarily need to be in both
+local function all_match_expr(expr)
+  local conditions = {}
+  for token in string.gmatch(expr, '(%S+)') do
+    -- XXX duplication of entry_match_expr and cwd_match_expr logic :(
+    conditions[#conditions+1] = "(entry LIKE '%" .. token .. "%' OR cwd LIKE '%" .. token .. "%')"
+  end
+  return '(' .. table.concat(conditions, ' AND ') .. ')'
+end
+
 function mod.filter(cursor, index_num, index_name, args)
   if cursor.debug then
     local pretty = require 'pretty'
@@ -169,6 +181,8 @@ function mod.filter(cursor, index_num, index_name, args)
         conditions[#conditions + 1] = cwd_match_expr(args[arg_pos])
       elseif column == 'entry' then
         conditions[#conditions + 1] = entry_match_expr(args[arg_pos])
+      elseif column == 'h' then
+        conditions[#conditions + 1] = all_match_expr(args[arg_pos])
       end
     end
 
@@ -189,7 +203,8 @@ function mod.filter(cursor, index_num, index_name, args)
       duration,
       exit_status,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
-      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today
+      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today,
+      1 AS h
     FROM history
     WHERE session_id <> ?
   ]] .. where_clause)
