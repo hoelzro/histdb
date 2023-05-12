@@ -141,6 +141,12 @@ local function entry_match_expr(expr)
   return '(' .. table.concat(conditions, ' AND ') .. ')'
 end
 
+local function cwd_match_expr(expr)
+  -- XXX more powerful match language
+  -- XXX string escaping
+  return string.format("cwd LIKE '%%%s%%'", expr)
+end
+
 function mod.filter(cursor, index_num, index_name, args)
   if cursor.debug then
     local pretty = require 'pretty'
@@ -160,7 +166,7 @@ function mod.filter(cursor, index_num, index_name, args)
       if column == 'timestamp' then
         conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos])
       elseif column == 'cwd' then
-        error 'nyi'
+        conditions[#conditions + 1] = cwd_match_expr(args[arg_pos])
       elseif column == 'entry' then
         conditions[#conditions + 1] = entry_match_expr(args[arg_pos])
       end
