@@ -42,16 +42,7 @@ local function process_cli_args(args)
   return options
 end
 
-local options = process_cli_args(arg)
-
-local output = io.stdout
-
-if options.output_filename then
-  output = assert(io.open(options.output_filename, 'w'))
-end
-
-for i_mod = 1, #options do
-  local module_path = options[i_mod]
+local function write_module(output, module_prefix, module_path)
   local module_name = string.match(module_path, '(.*)[.]lua$')
 
   local module_src = assert(slurp_file(module_path))
@@ -69,7 +60,7 @@ for i_mod = 1, #options do
 
   assert(delim_level, 'unable to determine safe delimiter level')
 
-  output:write(string.format('package.preload[%q] = function()\n', (options.module_prefix and options.module_prefix .. '.' or '') .. module_name))
+  output:write(string.format('package.preload[%q] = function()\n', (module_prefix and module_prefix .. '.' or '') .. module_name))
   output:write('  local src = [' .. string.rep('=', delim_level) .. '[\n')
   output:write(module_src)
   output:write('  ]' .. string.rep('=', delim_level) .. ']\n\n')
@@ -79,6 +70,20 @@ for i_mod = 1, #options do
   output:write '  end\n'
   output:write '  return loader()\n'
   output:write 'end\n\n'
+end
+
+local options = process_cli_args(arg)
+
+local output = io.stdout
+
+if options.output_filename then
+  output = assert(io.open(options.output_filename, 'w'))
+end
+
+output:write '-- This file is generated via build.lua - do not edit by hand!\n\n'
+
+for i_mod = 1, #options do
+  write_module(output, options.module_prefix, options[i_mod])
 end
 
 if options.entrypoint then
