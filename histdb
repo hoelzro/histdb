@@ -1,49 +1,230 @@
-#!/bin/bash
+#!/usr/bin/env lua
 
-set -e -u
+local sqlite3  = require 'lsqlite3'
+local dirent   = require 'posix.dirent'
+local stdlib   = require 'posix.stdlib'
+local unistd   = require 'posix.unistd'
+local sys_wait = require 'posix.sys.wait'
 
-amalgam_sqlite=/home/rob/.cache/histdb.db
+local basename = require('posix.libgen').basename
 
-todays_db=$(date +'%Y-%m-%d.db')
-yesterdays_db=$(date +'%Y-%m-%d.db' -d 'yesterday')
+local AMALGAM_PATH <const> = '/home/rob/.cache/histdb.db'
+local DB_DIR <const> = '/home/rob/.zsh_history.d/'
 
-max_date=$(sqlite3 "$amalgam_sqlite" "SELECT DATE(MAX(CAST(timestamp AS INTEGER)), 'unixepoch', 'localtime') FROM history_before_today" 2>/dev/null || true)
-if [[ -z "$max_date" ]] ; then
-    sqlite3 "$(ls ~/.zsh_history.d/*.db | tail -n 1)" .schema | sqlite3 "$amalgam_sqlite"
-    sqlite3 "$amalgam_sqlite" "ALTER TABLE history RENAME TO history_before_today"
-fi
+local ERR_NO_COLUMNS <const> = {}
 
-if [[ "$max_date" != $(date +'%Y-%m-%d' -d yesterday) ]] ; then
-    for db in ~/.zsh_history.d/*.db; do
-        if [[ "$(basename "$db")" == "$todays_db" ]] ; then
-            continue
-        fi
+-- XXX I'd rather have a `local obj <close> = closing(obj)`, but this'll do for now
+local function closer(closee, method)
+  method = method or 'close'
+  return closee, setmetatable({}, {
+    __close = function()
+      local f = type(method) == 'string' and closee[method] or method
+      return f(closee)
+    end,
+  })
+end
 
-        if [[ -n "$max_date" && ( "$(basename "$db")" == "$max_date.db" || "$(basename "$db")" < "$max_date.db" ) ]]; then
-            continue
-        fi
+local function get_scalar(db, sql)
+  local stmt = db:prepare(sql)
+  local status = stmt:step()
+  if status ~= sqlite3.ROW then
+    -- XXX finalize here?
+    if status  == sqlite3.ERROR then
+      return nil, db:error_message(), db:error_code()
+    end
+    return nil, 'bad step value?', status
+  end
+  local value = stmt:get_value(0)
+  if stmt:finalize() ~= sqlite3.OK then
+    return nil, db:error_message(), db:error_code()
+  end
+  return value
+end
 
-        columns=( $(sqlite3 "$db" "SELECT name FROM pragma_table_info('history')") )
-        joined_columns=$(printf '%s, ' "${columns[@]}")
-        joined_columns=${joined_columns%%, }
-        sqlite3 "$amalgam_sqlite" "ATTACH DATABASE '$db' AS orig; INSERT INTO main.history_before_today ($joined_columns) SELECT $joined_columns FROM orig.history"
-    done
-fi
+local function init_schema(db, daily_db_paths)
+  local found_history_before_today = get_scalar(db, "SELECT name FROM pragma_table_list() WHERE type = 'table' AND schema = 'main' AND name = 'history_before_today'")
 
-amalgam_max_rowid=$(sqlite3 "$amalgam_sqlite" "SELECT MAX(rowid) FROM history_before_today")
+  if found_history_before_today then
+    return true
+  end
 
-export LD_LIBRARY_PATH=/home/rob/projects/sqlite-lua-vtable/
+  for i = #daily_db_paths, 1, -1 do
+    local daily_db, code, msg = sqlite3.open(daily_db_paths[i])
+    if not daily_db then
+      return nil, msg, code
+    end
+    local _, db_closer <close> = closer(daily_db)
 
-sqliterc=$(mktemp ${TMPDIR:-/tmp}/histdb-init.XXXXXX)
-cat <<END_SQLITERC > "$sqliterc"
-ATTACH DATABASE '$HOME/.zsh_history.d/$todays_db' AS today_db;
-CREATE TEMPORARY VIEW history AS SELECT rowid, * FROM history_before_today UNION ALL SELECT rowid + $amalgam_max_rowid, * FROM today_db.history;
+    local sql = get_scalar(daily_db, "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'history'" )
+    if sql then
+      local status = db:execute(sql)
+      if status ~= sqlite3.OK then
+        return nil, db:error_message(), db:error_code()
+      end
+
+      status = db:execute 'ALTER TABLE history RENAME TO history_before_today'
+      if status ~= sqlite3.OK then
+        return nil, db:error_message(), db:error_code()
+      end
+
+      return true
+    end
+  end
+
+  return false, 'unable to find daily database file to bootstrap schema from'
+end
+
+local function collect_daily_dbs(dir)
+  local sorted_paths = {}
+
+  for f in dirent.files(dir) do
+    if string.sub(f, -3) == '.db' then
+      sorted_paths[#sorted_paths + 1] = f
+    end
+  end
+
+  local function prioritize_yyyymmdd(a, b)
+    local a_is_yyyymmdd = not not string.match(a, '^%d%d%d%d%-%d%d%-%d%d%.db$')
+    local b_is_yyyymmdd = not not string.match(b, '^%d%d%d%d%-%d%d%-%d%d%.db$')
+
+    if a_is_yyyymmdd == b_is_yyyymmdd then
+      return a < b
+    elseif a_is_yyyymmdd and not b_is_yyyymmdd then
+      return false
+    elseif not a_is_yyyymmdd and b_is_yyyymmdd then
+      return true
+    end
+  end
+
+  table.sort(sorted_paths, prioritize_yyyymmdd)
+
+  for i = 1, #sorted_paths do
+    sorted_paths[i] = dir .. '/' .. sorted_paths[i]
+  end
+
+  return sorted_paths
+end
+
+local function backfill_single(db, source_path)
+  local attach_stmt, err = db:prepare('ATTACH DATABASE ? AS orig')
+  if not attach_stmt then
+    return nil, db:error_message(), db:error_code()
+  end
+
+  if attach_stmt:bind_values(source_path) ~= sqlite3.OK then
+    return nil, db:error_message(), db:error_code()
+  end
+
+  if attach_stmt:step() ~= sqlite3.DONE then
+    return nil, db:error_message(), db:error_code()
+  end
+
+  local _, detacher <close> = closer(nil, function()
+    -- not super keen on the assertion, but I don't know if I can alter
+    -- the return value
+    assert(db:exec('DETACH DATABASE orig') == sqlite3.OK)
+  end)
+
+  local columns = {}
+  for _, column_name in db:urows "PRAGMA orig.table_info('history')" do
+    columns[#columns + 1] = column_name
+  end
+
+  if #columns == 0 then
+    return false, 'no columns found', ERR_NO_COLUMNS
+  end
+
+  columns = table.concat(columns, ', ')
+  local status = db:exec(string.format('INSERT INTO main.history_before_today (%s) SELECT %s FROM orig.history', columns, columns))
+  if status ~= sqlite3.OK then
+    return nil, db:error_message(), db:error_code()
+  end
+
+  return true
+end
+
+local function backfill_amalgam(db, daily_dbs)
+  local max_date = get_scalar(db, "SELECT DATE(MAX(CAST(timestamp AS INTEGER)), 'unixepoch', 'localtime') FROM history_before_today")
+  local todays_db = os.date('%Y-%m-%d') .. '.db'
+  local max_date_db = (max_date or '') .. '.db'
+
+  for i = 1, #daily_dbs do
+    local db_path = daily_dbs[i]
+    local db_name = basename(db_path)
+
+    if db_name == todays_db then
+      goto continue
+    end
+
+    if db_name <= max_date_db then
+      goto continue
+    end
+
+    local ok, error_msg, error_code = backfill_single(db, db_path)
+    if not ok then
+      if error_code == ERR_NO_COLUMNS then
+        goto continue
+      end
+
+      return nil, error_msg, error_code
+    end
+
+    ::continue::
+  end
+
+  return true
+end
+
+local function prepare_sqliterc(db)
+  local sqliterc = os.tmpname()
+
+  local todays_db = os.date('%Y-%m-%d') .. '.db'
+  local max_rowid = get_scalar(db, 'SELECT MAX(rowid) FROM history_before_today')
+  local f <close> = assert(io.open(sqliterc, 'w'))
+  f:write(string.format([[
+ATTACH DATABASE '%s/%s' AS today_db;
+CREATE TEMPORARY VIEW history AS SELECT rowid, * FROM history_before_today UNION ALL SELECT rowid + %d, * FROM today_db.history;
 .load lua-vtable
 .output /dev/null
 select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
 .output
 create virtual table temp.h_debug using h(debug);
-END_SQLITERC
+]], DB_DIR, todays_db, max_rowid))
 
-sqlite3 -batch -init "$sqliterc" "$amalgam_sqlite" "$@"
-rm "$sqliterc"
+  return closer(sqliterc, os.remove)
+end
+
+local function run_sqlite(amalgam_path, sqliterc, arg)
+  local sqlite3_args = {
+    '-batch',
+    '-init', sqliterc,
+    amalgam_path,
+  }
+  for i = 1, #arg do
+    sqlite3_args[#sqlite3_args + 1] = arg[i]
+  end
+
+  local pid = assert(unistd.fork())
+  if pid == 0 then
+    stdlib.setenv('LD_LIBRARY_PATH', '/home/rob/projects/sqlite-lua-vtable/')
+    unistd.execp('sqlite3', sqlite3_args)
+  else
+    local _, reason, exit_code = sys_wait.wait(pid)
+    if exit_code ~= 0 then
+      return nil, string.format('sqlite3 %s with %d', reason, exit_code)
+    end
+  end
+
+  return true
+end
+
+local daily_dbs = collect_daily_dbs(DB_DIR)
+local db, db_closer <close> = closer(assert(sqlite3.open(AMALGAM_PATH)))
+assert(init_schema(db, daily_dbs))
+assert(backfill_amalgam(db, daily_dbs))
+local sqliterc, sqliterc_remover <close> = prepare_sqliterc(db)
+local ok, err, exit_code = run_sqlite(AMALGAM_PATH, sqliterc, arg)
+if not ok then
+  io.stderr:write(err .. '\n')
+  os.exit(exit_code)
+end
