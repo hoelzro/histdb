@@ -1,25 +1,7 @@
 local sqlite3 = require 'lsqlite3'
 local match_timestamps = require 'match_timestamps'
 
-local session_id
-
-do
-  local this_pid = 'self'
-  while this_pid ~= '1' do
-    local proc_stat = assert(io.open('/proc/' .. this_pid .. '/stat', 'r'))
-    local line = proc_stat:read '*l'
-    proc_stat:close()
-
-    local pid, comm, parent_pid = string.match(line, "^(%d+)%s+%(([^)]+)%)%s+%S%s+(%d+)")
-
-    if comm ~= 'histdb' and comm ~= 'sqlite3' then
-      session_id = tonumber(pid)
-      break
-    end
-
-    this_pid = parent_pid
-  end
-end
+local session_id = os.getenv 'HISTDB_SESSION_ID'
 
 local mod = {
   name = 'h',
