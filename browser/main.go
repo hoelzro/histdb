@@ -11,8 +11,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-
 	"github.com/mattn/go-sqlite3"
+
+	"golang.org/x/exp/slices"
 )
 
 var baseStyle = lipgloss.NewStyle()
@@ -42,24 +43,23 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Row, error) {
 
 	tableRows := make([]table.Row, 0)
 
-	for rows.Next() {
-		var timestamp string
-		var workingDirectory string
-		var entry string
+	var currentRow table.Row
+	if m.showWorkingDirectory {
+		currentRow = table.Row(make([]string, 3))
+	} else {
+		currentRow = table.Row(make([]string, 2))
+	}
+	scanPointers := make([]any, len(currentRow))
+	for i := 0; i < len(currentRow); i++ {
+		scanPointers[i] = &currentRow[i]
+	}
 
-		if m.showWorkingDirectory {
-			err := rows.Scan(&timestamp, &workingDirectory, &entry)
-			if err != nil {
-				return nil, err
-			}
-			tableRows = append(tableRows, table.Row{timestamp, workingDirectory, entry})
-		} else {
-			err := rows.Scan(&timestamp, &entry)
-			if err != nil {
-				return nil, err
-			}
-			tableRows = append(tableRows, table.Row{timestamp, entry})
+	for rows.Next() {
+		err := rows.Scan(scanPointers...)
+		if err != nil {
+			return nil, err
 		}
+		tableRows = append(tableRows, slices.Clone(currentRow))
 	}
 
 	if err := rows.Err(); err != nil {
