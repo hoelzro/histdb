@@ -203,7 +203,7 @@ function mod.filter(cursor, index_num, index_name, args)
     end
   end
 
-  local stmt = cursor.vtab.db:prepare([[
+  local sql = [[
     SELECT
       rowid,
       hostname,
@@ -219,7 +219,13 @@ function mod.filter(cursor, index_num, index_name, args)
       1 AS h
     FROM history
     WHERE session_id <> ?
-  ]] .. where_clause .. '\n' .. order_by_clause)
+  ]] .. where_clause .. '\n' .. order_by_clause
+
+  if cursor.debug then
+    io.stderr:write(sql .. '\n')
+  end
+
+  local stmt = cursor.vtab.db:prepare(sql)
 
   if not stmt then
     return nil, cursor.vtab.db:errmsg()
