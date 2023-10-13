@@ -35,38 +35,47 @@ func (m model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Row, error) {
+func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
 	rows, err := m.db.Query(sql, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tableRows := make([]table.Row, 0)
 
 	columns, err := rows.Columns()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	tableColumns := make([]table.Column, len(columns))
 	currentRow := table.Row(make([]string, len(columns)))
-	scanPointers := make([]any, len(currentRow))
-	for i := 0; i < len(currentRow); i++ {
+	scanPointers := make([]any, len(columns))
+
+	for i, columnName := range columns {
+		tableColumns[i] = table.Column{
+			Title: columnName,
+			Width: 20, // XXX improve me
+		}
 		scanPointers[i] = &currentRow[i]
 	}
+
+	// XXX always the last column? or always the entry column?
+	tableColumns[len(tableColumns)-1].Width = 100
 
 	for rows.Next() {
 		err := rows.Scan(scanPointers...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		tableRows = append(tableRows, slices.Clone(currentRow))
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return tableRows, nil
+	return tableColumns, tableRows, err
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -81,23 +90,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
 			m.showWorkingDirectory = !m.showWorkingDirectory
-
-			m.table.SetRows(nil) // XXX explain
-
-			if m.showWorkingDirectory {
-				columns := []table.Column{
-					{Title: "timestamp", Width: 20},
-					{Title: "directory", Width: 20},
-					{Title: "entry", Width: 100}, // XXX flex column, I assume
-				}
-				m.table.SetColumns(columns)
-			} else {
-				columns := []table.Column{
-					{Title: "timestamp", Width: 20},
-					{Title: "entry", Width: 100}, // XXX flex column, I assume
-				}
-				m.table.SetColumns(columns)
-			}
 		}
 	}
 
@@ -107,23 +99,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, tableCmd = m.table.Update(msg)
 	m.input, inputCmd = m.input.Update(msg)
 
-	columns := "timestamp, entry"
+	selectClause := "timestamp, entry"
 	if m.showWorkingDirectory {
-		columns = "timestamp, cwd, entry"
+		selectClause = "timestamp, cwd, entry"
 	}
 
+	var columns []table.Column
 	var rows []table.Row
 	var err error
 	query := m.input.Value()
 	if query == "" {
-		rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5", columns))
+		columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5", selectClause))
 	} else {
-		rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", columns), query)
+		columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", selectClause), query)
 	}
 	if err != nil {
 		panic(err)
 	}
 
+	// if the set of visible columns has changed, it won't be consistent with the current
+	// rows and we may get an index out of range panic - so clear the rows before setting
+	// up the columns
+	m.table.SetRows(nil) // XXX should we only do this if the column set changed?
+
+	m.table.SetColumns(columns)
 	m.table.SetRows(rows)
 
 	return m, tea.Batch(tableCmd, inputCmd)
