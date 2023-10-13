@@ -71,9 +71,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var err error
 	query := m.input.Value()
 	if query == "" {
-		rows, err = m.getRowsFromQuery("SELECT DATETIME(IFNULL(timestamp, 0), 'unixepoch', 'localtime') AS timestamp, entry FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5")
+		rows, err = m.getRowsFromQuery("SELECT timestamp, entry FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5")
 	} else {
-		rows, err = m.getRowsFromQuery("SELECT IFNULL(DATETIME(timestamp, 'unixepoch', 'localtime'), '1970-01-01 00:00:00') AS timestamp, entry FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", query)
+		rows, err = m.getRowsFromQuery("SELECT timestamp, entry FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", query)
 	}
 	if err != nil {
 		panic(err)
@@ -88,11 +88,11 @@ func (m model) View() string {
 	return m.input.View() + "\n" + baseStyle.Render(m.table.View()) + "\n"
 }
 
-// XXX fix timestamp issue
 // XXX highlight matching parts of entry in table rows
 // XXX hotkey to toggle various columns
 // XXX hotkey to toggle local vs global history
 // XXX hotkey to convert query to SQL
+// XXX load today's DB too
 
 // XXX create a dummy application that live-filters table rows against a query from a textbox
 func main() {
