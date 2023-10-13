@@ -65,6 +65,7 @@ function mod.best_index(vtab, info)
   local constraint_usage = {}
   local index_str
   local next_argv = 1
+  local order_by_consumed
 
   for i = 1, #info.constraints do
     local c = info.constraints[i]
@@ -87,9 +88,23 @@ function mod.best_index(vtab, info)
     index_str = table.concat(index_str, ':')
   end
 
+  if #info.order_by > 0 then
+    index_str = (index_str or '') .. '::'
+
+    -- XXX guardrail - mostly in place to make sure I'm not being dumb about order_by_consumed, but also to make sure that my use of the columns over in the filter method is correct
+    assert(#info.order_by == 1 and COLUMNS[info.order_by[1].column] == 'timestamp', 'ordering by more than one column, or a non-timestamp column, has yet to be implemented')
+    order_by_consumed = true
+
+    for i = 1, #info.order_by do
+      local o = info.order_by[i]
+      index_str = index_str .. string.format('%s-%s', COLUMNS[o.column], o.desc and 'desc' or 'asc')
+    end
+  end
+
   return {
     constraint_usage = constraint_usage,
     index_str = index_str,
+    order_by_consumed = order_by_consumed,
   }
 end
 
@@ -151,10 +166,15 @@ function mod.filter(cursor, index_num, index_name, args)
   end
 
   local where_clause = ''
+  local order_by_clause = ''
   if index_name then
+    -- index_name is built up within best_index above, and takes the form of ((column .. '-' .. position) .. ':')* .. ('::' order_column .. '-' .. order_direction)?
     local conditions = {}
 
-    for column, arg_pos in string.gmatch(index_name, '([^:]+)-(%d+)') do
+    local constraints, ordering = string.match(index_name, '(.*)::(.*)')
+    constraints = constraints or index_name
+
+    for column, arg_pos in string.gmatch(constraints, '([^:]+)-(%d+)') do
       arg_pos = tonumber(arg_pos)
 
       if column == 'timestamp' then
@@ -170,6 +190,16 @@ function mod.filter(cursor, index_num, index_name, args)
 
     if #conditions > 0 then
       where_clause = 'AND ' .. table.concat(conditions, ' AND ')
+    end
+
+    if ordering then
+      if ordering == 'timestamp-asc' then
+        order_by_clause = 'ORDER BY timestamp ASC'
+      elseif ordering == 'timestamp-desc' then
+        order_by_clause = 'ORDER BY timestamp DESC'
+      else
+        error 'non-timestamp ordering not yet implemented - see guardrail in best_index method'
+      end
     end
   end
 
@@ -189,7 +219,7 @@ function mod.filter(cursor, index_num, index_name, args)
       1 AS h
     FROM history
     WHERE session_id <> ?
-  ]] .. where_clause)
+  ]] .. where_clause .. '\n' .. order_by_clause)
 
   if not stmt then
     return nil, cursor.vtab.db:errmsg()
