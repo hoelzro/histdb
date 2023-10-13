@@ -179,17 +179,15 @@ local function prepare_sqliterc(db)
   local sqliterc = os.tmpname()
 
   local todays_db = os.date('%Y-%m-%d') .. '.db'
-  local max_rowid = get_scalar(db, 'SELECT MAX(rowid) FROM history_before_today')
   local f <close> = assert(io.open(sqliterc, 'w'))
   f:write(string.format([[
 ATTACH DATABASE '%s/%s' AS today_db;
-CREATE TEMPORARY VIEW history AS SELECT rowid, * FROM history_before_today UNION ALL SELECT rowid + %d, * FROM today_db.history;
 .load lua-vtable
 .output /dev/null
 select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
 .output
 create virtual table temp.h_debug using h(debug);
-]], DB_DIR, todays_db, max_rowid))
+]], DB_DIR, todays_db))
 
   return closer(sqliterc, os.remove)
 end

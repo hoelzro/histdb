@@ -165,6 +165,9 @@ function mod.filter(cursor, index_num, index_name, args)
     pretty.print(args)
   end
 
+  local first_table = 'history_before_today'
+  local second_table = 'today_db.history'
+
   local where_clause = ''
   local order_by_clause = ''
   if index_name then
@@ -194,16 +197,20 @@ function mod.filter(cursor, index_num, index_name, args)
 
     if ordering then
       if ordering == 'timestamp-asc' then
-        order_by_clause = 'ORDER BY timestamp ASC'
+        order_by_clause = 'ORDER BY history.timestamp ASC'
       elseif ordering == 'timestamp-desc' then
-        order_by_clause = 'ORDER BY timestamp DESC'
+        order_by_clause = 'ORDER BY history.timestamp DESC'
+
+        -- XXX explain
+        first_table = 'today_db.history'
+        second_table = 'history_before_today'
       else
         error 'non-timestamp ordering not yet implemented - see guardrail in best_index method'
       end
     end
   end
 
-  local sql = [[
+  local sql = string.format([[
     SELECT
       rowid,
       hostname,
@@ -217,9 +224,13 @@ function mod.filter(cursor, index_num, index_name, args)
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today,
       1 AS h
-    FROM history
-    WHERE session_id <> ?
-  ]] .. where_clause .. '\n' .. order_by_clause
+    FROM (
+      SELECT * FROM (SELECT rowid, * FROM %s AS history WHERE session_id <> :session_id %s %s)
+      UNION ALL
+      SELECT * FROM (SELECT rowid, * FROM %s AS history WHERE session_id <> :session_id %s %s)
+    ) AS history
+  ]], first_table, where_clause, order_by_clause,
+      second_table, where_clause, order_by_clause)
 
   if cursor.debug then
     io.stderr:write(sql .. '\n')
@@ -231,7 +242,9 @@ function mod.filter(cursor, index_num, index_name, args)
     return nil, cursor.vtab.db:errmsg()
   end
 
-  stmt:bind_values(tostring(session_id))
+  stmt:bind_names {
+    session_id = tostring(session_id),
+  }
 
   cursor.stmt = stmt
 
