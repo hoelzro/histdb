@@ -43,12 +43,12 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Row, error) {
 
 	tableRows := make([]table.Row, 0)
 
-	var currentRow table.Row
-	if m.showWorkingDirectory {
-		currentRow = table.Row(make([]string, 3))
-	} else {
-		currentRow = table.Row(make([]string, 2))
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
 	}
+
+	currentRow := table.Row(make([]string, len(columns)))
 	scanPointers := make([]any, len(currentRow))
 	for i := 0; i < len(currentRow); i++ {
 		scanPointers[i] = &currentRow[i]
