@@ -5,6 +5,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -152,6 +153,14 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
+
+	databaseDir := "/home/rob/.zsh_history.d"
+	todayDatabaseBasename := time.Now().Format(time.DateOnly) + ".db"
+
+	_, err = db.Exec(fmt.Sprintf("ATTACH DATABASE '%s/%s' AS today_db", databaseDir, todayDatabaseBasename))
+	if err != nil {
+		panic(err)
+	}
 
 	_, err = db.Exec("SELECT lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua')")
 	if err != nil {
