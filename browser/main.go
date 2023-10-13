@@ -4,7 +4,9 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,10 +17,17 @@ import (
 
 var baseStyle = lipgloss.NewStyle()
 
+var toggleWorkingDirectoryKey = key.NewBinding(
+	key.WithKeys("f2"),
+	key.WithHelp("f2", "Toggle working directory column"),
+)
+
 type model struct {
 	db    *sql.DB
 	input textinput.Model
 	table table.Model
+
+	showWorkingDirectory bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -35,14 +44,22 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Row, error) {
 
 	for rows.Next() {
 		var timestamp string
+		var workingDirectory string
 		var entry string
 
-		err := rows.Scan(&timestamp, &entry)
-		if err != nil {
-			return nil, err
+		if m.showWorkingDirectory {
+			err := rows.Scan(&timestamp, &workingDirectory, &entry)
+			if err != nil {
+				return nil, err
+			}
+			tableRows = append(tableRows, table.Row{timestamp, workingDirectory, entry})
+		} else {
+			err := rows.Scan(&timestamp, &entry)
+			if err != nil {
+				return nil, err
+			}
+			tableRows = append(tableRows, table.Row{timestamp, entry})
 		}
-
-		tableRows = append(tableRows, table.Row{timestamp, entry})
 	}
 
 	if err := rows.Err(); err != nil {
@@ -59,6 +76,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		}
+
+		// XXX merge these two (put ctrl+c into a keymap)
+		switch {
+		case key.Matches(msg, toggleWorkingDirectoryKey):
+			m.showWorkingDirectory = !m.showWorkingDirectory
+
+			m.table.SetRows(nil) // XXX explain
+
+			if m.showWorkingDirectory {
+				columns := []table.Column{
+					{Title: "timestamp", Width: 20},
+					{Title: "directory", Width: 20},
+					{Title: "entry", Width: 100}, // XXX flex column, I assume
+				}
+				m.table.SetColumns(columns)
+			} else {
+				columns := []table.Column{
+					{Title: "timestamp", Width: 20},
+					{Title: "entry", Width: 100}, // XXX flex column, I assume
+				}
+				m.table.SetColumns(columns)
+			}
+		}
 	}
 
 	var tableCmd tea.Cmd
@@ -67,13 +107,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, tableCmd = m.table.Update(msg)
 	m.input, inputCmd = m.input.Update(msg)
 
+	columns := "timestamp, entry"
+	if m.showWorkingDirectory {
+		columns = "timestamp, cwd, entry"
+	}
+
 	var rows []table.Row
 	var err error
 	query := m.input.Value()
 	if query == "" {
-		rows, err = m.getRowsFromQuery("SELECT timestamp, entry FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5")
+		rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5", columns))
 	} else {
-		rows, err = m.getRowsFromQuery("SELECT timestamp, entry FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", query)
+		rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", columns), query)
 	}
 	if err != nil {
 		panic(err)
@@ -131,7 +176,11 @@ func main() {
 		table.WithColumns(columns),
 		table.WithHeight(5),
 	)
-	m := model{db, input, t}
+	m := model{
+		db:    db,
+		input: input,
+		table: t,
+	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		panic(err)
 	}
