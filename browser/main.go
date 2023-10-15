@@ -30,6 +30,11 @@ var toggleTimestampKey = key.NewBinding(
 	key.WithHelp("f3", "Toggle timestamp column"),
 )
 
+var toggleSessionIDKey = key.NewBinding(
+	key.WithKeys("f4"),
+	key.WithHelp("f4", "Toggle session ID column"),
+)
+
 type model struct {
 	db    *sql.DB
 	input textinput.Model
@@ -37,6 +42,7 @@ type model struct {
 
 	showTimestamp        bool
 	showWorkingDirectory bool
+	showSessionID        bool
 }
 
 func (m model) Init() tea.Cmd {
@@ -100,6 +106,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showWorkingDirectory = !m.showWorkingDirectory
 		case key.Matches(msg, toggleTimestampKey):
 			m.showTimestamp = !m.showTimestamp
+		case key.Matches(msg, toggleSessionIDKey):
+			m.showSessionID = !m.showSessionID
 		}
 	}
 
@@ -113,6 +121,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if m.showTimestamp {
 		selectClauseColumns = append(selectClauseColumns, "timestamp")
+	}
+	if m.showSessionID {
+		selectClauseColumns = append(selectClauseColumns, "session_id")
 	}
 	if m.showWorkingDirectory {
 		selectClauseColumns = append(selectClauseColumns, "cwd")
