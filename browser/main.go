@@ -5,6 +5,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -24,11 +25,17 @@ var toggleWorkingDirectoryKey = key.NewBinding(
 	key.WithHelp("f2", "Toggle working directory column"),
 )
 
+var toggleTimestampKey = key.NewBinding(
+	key.WithKeys("f3"),
+	key.WithHelp("f3", "Toggle timestamp column"),
+)
+
 type model struct {
 	db    *sql.DB
 	input textinput.Model
 	table table.Model
 
+	showTimestamp        bool
 	showWorkingDirectory bool
 }
 
@@ -91,6 +98,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
 			m.showWorkingDirectory = !m.showWorkingDirectory
+		case key.Matches(msg, toggleTimestampKey):
+			m.showTimestamp = !m.showTimestamp
 		}
 	}
 
@@ -100,10 +109,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, tableCmd = m.table.Update(msg)
 	m.input, inputCmd = m.input.Update(msg)
 
-	selectClause := "timestamp, entry"
-	if m.showWorkingDirectory {
-		selectClause = "timestamp, cwd, entry"
+	selectClauseColumns := make([]string, 0)
+
+	if m.showTimestamp {
+		selectClauseColumns = append(selectClauseColumns, "timestamp")
 	}
+	if m.showWorkingDirectory {
+		selectClauseColumns = append(selectClauseColumns, "cwd")
+	}
+
+	selectClauseColumns = append(selectClauseColumns, "entry")
+
+	selectClause := strings.Join(selectClauseColumns, ", ")
 
 	var columns []table.Column
 	var rows []table.Row
@@ -188,6 +205,8 @@ func main() {
 		db:    db,
 		input: input,
 		table: t,
+
+		showTimestamp: true,
 	}
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		panic(err)
