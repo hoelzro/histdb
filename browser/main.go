@@ -1,5 +1,3 @@
-//go:build libsqlite3
-
 package main
 
 import (

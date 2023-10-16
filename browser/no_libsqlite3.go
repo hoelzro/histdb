@@ -2,4 +2,6 @@
 
 package main
 
-// you need to use -tags libsqlite3!
+func init() {
+	panic("Sorry, you need to build me with -tags libsqlite3")
+}
