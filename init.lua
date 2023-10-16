@@ -156,6 +156,12 @@ local function all_match_expr(expr)
   return '(' .. table.concat(conditions, ' AND ') .. ')'
 end
 
+local function template(tmpl, tmpl_vars)
+  return string.gsub(tmpl, '«(.-)»', function(var)
+    return assert(tmpl_vars[var], string.format('missing template variable %q', var))
+  end)
+end
+
 function mod.filter(cursor, index_num, index_name, args)
   if cursor.debug then
     local pretty = require 'pretty'
@@ -210,7 +216,7 @@ function mod.filter(cursor, index_num, index_name, args)
     end
   end
 
-  local sql = string.format([[
+  local sql = template([[
     SELECT
       rowid,
       hostname,
@@ -225,13 +231,17 @@ function mod.filter(cursor, index_num, index_name, args)
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today,
       1 AS h
     FROM (
-      SELECT * FROM (SELECT rowid, * FROM %s AS history WHERE session_id <> :session_id %s %s)
+      SELECT * FROM (SELECT rowid, * FROM «first_table» AS history WHERE session_id <> :session_id «where_clause» «order_by_clause»)
       UNION ALL
-      SELECT * FROM (SELECT rowid, * FROM %s AS history WHERE session_id <> :session_id %s %s)
+      SELECT * FROM (SELECT rowid, * FROM «second_table» AS history WHERE session_id <> :session_id «where_clause» «order_by_clause»)
     ) AS history
     WHERE timestamp IS NOT NULL AND TYPEOF(timestamp) = 'integer'
-  ]], first_table, where_clause, order_by_clause,
-      second_table, where_clause, order_by_clause)
+  ]], {
+    first_table     = first_table,
+    second_table    = second_table,
+    where_clause    = where_clause,
+    order_by_clause = order_by_clause,
+  })
 
   if cursor.debug then
     io.stderr:write(sql .. '\n')
