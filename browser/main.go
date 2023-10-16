@@ -198,16 +198,10 @@ func main() {
 		panic(err)
 	}
 
-	columns := []table.Column{
-		{Title: "timestamp", Width: 20},
-		{Title: "entry", Width: 100}, // XXX flex column, I assume
-	}
-
 	input := textinput.New()
 	input.Focus()
 
 	t := table.New(
-		table.WithColumns(columns),
 		table.WithHeight(5),
 	)
 	m := model{
