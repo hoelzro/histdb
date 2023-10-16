@@ -125,6 +125,15 @@ do
   end
 end
 
+-- rowids must all be unique
+do
+  local results = get_query_results 'SELECT rowid FROM h'
+  local counts = count_tuples(results)
+  for rowid, count in pairs(counts) do
+    assert(count == 1, string.format('rowid %d appeared more than once', rowid))
+  end
+end
+
 for i = 1, #invariants do
   local inv = invariants[i]
 
