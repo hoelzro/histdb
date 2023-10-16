@@ -229,6 +229,7 @@ function mod.filter(cursor, index_num, index_name, args)
       UNION ALL
       SELECT * FROM (SELECT rowid, * FROM %s AS history WHERE session_id <> :session_id %s %s)
     ) AS history
+    WHERE timestamp IS NOT NULL AND TYPEOF(timestamp) = 'integer'
   ]], first_table, where_clause, order_by_clause,
       second_table, where_clause, order_by_clause)
 
