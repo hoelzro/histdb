@@ -44,6 +44,8 @@ type model struct {
 	input textinput.Model
 	table table.Model
 
+	windowWidth int
+
 	showTimestamp        bool
 	showWorkingDirectory bool
 	showSessionID        bool
@@ -70,6 +72,8 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 	currentRow := table.Row(make([]string, len(columns)))
 	scanPointers := make([]any, len(columns))
 
+	fixedWidthTotal := 0
+
 	for i, columnName := range columns {
 		columnWidth := columnWidths[columnName]
 		if columnWidth == 0 {
@@ -81,10 +85,17 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 			Width: columnWidth,
 		}
 		scanPointers[i] = &currentRow[i]
+
+		fixedWidthTotal += columnWidth
 	}
 
-	// XXX always the last column? or always the entry column?
-	tableColumns[len(tableColumns)-1].Width = 100
+	if m.windowWidth > 0 {
+		fixedWidthTotal -= tableColumns[len(tableColumns)-1].Width
+
+		// set the width of the rightmost column to be whatever we have left
+		// XXX always the rightmost column? or always the entry column?
+		tableColumns[len(tableColumns)-1].Width = m.windowWidth - fixedWidthTotal
+	}
 
 	for rows.Next() {
 		err := rows.Scan(scanPointers...)
@@ -103,6 +114,8 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.windowWidth = msg.Width
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
