@@ -33,6 +33,12 @@ var toggleSessionIDKey = key.NewBinding(
 	key.WithHelp("f4", "Toggle session ID column"),
 )
 
+var columnWidths = map[string]int{
+	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
+	"session_id": 10, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
+	"cwd":        70, // based on my history
+}
+
 type model struct {
 	db    *sql.DB
 	input textinput.Model
@@ -65,9 +71,14 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 	scanPointers := make([]any, len(columns))
 
 	for i, columnName := range columns {
+		columnWidth := columnWidths[columnName]
+		if columnWidth == 0 {
+			columnWidth = 20
+		}
+
 		tableColumns[i] = table.Column{
 			Title: columnName,
-			Width: 20, // XXX improve me
+			Width: columnWidth,
 		}
 		scanPointers[i] = &currentRow[i]
 	}
