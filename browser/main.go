@@ -234,6 +234,8 @@ func main() {
 		panic(err)
 	}
 
+	lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(os.Stderr))
+
 	input := textinput.New()
 	input.Focus()
 
