@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -43,6 +44,8 @@ type model struct {
 	db    *sql.DB
 	input textinput.Model
 	table table.Model
+
+	selection string
 
 	windowWidth int
 
@@ -119,6 +122,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
+			return m, tea.Quit
+		case "down":
+			m.table.MoveDown(1)
+		case "up":
+			m.table.MoveUp(1)
+		case "enter":
+			if selectedRow := m.table.SelectedRow(); selectedRow != nil {
+				m.selection = selectedRow[len(selectedRow)-1]
+			}
 			return m, tea.Quit
 		}
 
@@ -235,7 +247,13 @@ func main() {
 
 		showTimestamp: true,
 	}
-	if _, err := tea.NewProgram(m).Run(); err != nil {
+	resModel, err := tea.NewProgram(m, tea.WithOutput(os.Stderr)).Run()
+	if err != nil {
 		panic(err)
+	}
+
+	m = resModel.(model)
+	if m.selection != "" {
+		fmt.Println(m.selection)
 	}
 }
