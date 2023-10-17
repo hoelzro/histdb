@@ -216,6 +216,25 @@ function mod.filter(cursor, index_num, index_name, args)
     end
   end
 
+  local max_before_today_rowid
+  do
+    local db = cursor.vtab.db
+    local stmt = db:prepare 'SELECT MAX(rowid) FROM history_before_today'
+    if not stmt then
+      return nil, db:errmsg()
+    end
+
+    local status = stmt:step()
+    if status ~= sqlite3.ROW then
+      return nil, db:errmsg()
+    end
+
+    max_before_today_rowid = stmt:get_value(0)
+    if stmt:finalize() ~= sqlite3.OK then
+      return nil, db:errmsg()
+    end
+  end
+
   local sql = template([[
     SELECT
       rowid,
@@ -231,9 +250,9 @@ function mod.filter(cursor, index_num, index_name, args)
       DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today,
       1 AS h
     FROM (
-      SELECT * FROM (SELECT rowid, * FROM «first_table» AS history WHERE session_id <> :session_id «where_clause» «order_by_clause»)
+      SELECT * FROM (SELECT «first_table_rowid», * FROM «first_table» AS history WHERE session_id <> :session_id «where_clause» «order_by_clause»)
       UNION ALL
-      SELECT * FROM (SELECT rowid, * FROM «second_table» AS history WHERE session_id <> :session_id «where_clause» «order_by_clause»)
+      SELECT * FROM (SELECT «second_table_rowid», * FROM «second_table» AS history WHERE session_id <> :session_id «where_clause» «order_by_clause»)
     ) AS history
     WHERE timestamp IS NOT NULL AND TYPEOF(timestamp) = 'integer'
   ]], {
@@ -241,6 +260,9 @@ function mod.filter(cursor, index_num, index_name, args)
     second_table    = second_table,
     where_clause    = where_clause,
     order_by_clause = order_by_clause,
+
+    first_table_rowid  = first_table == 'history_before_today' and 'rowid' or string.format('rowid + %d AS rowid', max_before_today_rowid),
+    second_table_rowid = second_table == 'history_before_today' and 'rowid' or string.format('rowid + %d AS rowid', max_before_today_rowid),
   })
 
   if cursor.debug then
