@@ -148,45 +148,49 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var tableCmd tea.Cmd
 	var inputCmd tea.Cmd
 
+	previousQuery := m.input.Value()
+
 	m.table, tableCmd = m.table.Update(msg)
 	m.input, inputCmd = m.input.Update(msg)
 
-	selectClauseColumns := make([]string, 0)
+	if query := m.input.Value(); query != previousQuery || len(m.table.Rows()) == 0 {
+		selectClauseColumns := make([]string, 0)
 
-	if m.showTimestamp {
-		selectClauseColumns = append(selectClauseColumns, "timestamp")
+		if m.showTimestamp {
+			selectClauseColumns = append(selectClauseColumns, "timestamp")
+		}
+		if m.showSessionID {
+			selectClauseColumns = append(selectClauseColumns, "session_id")
+		}
+		if m.showWorkingDirectory {
+			selectClauseColumns = append(selectClauseColumns, "cwd")
+		}
+
+		selectClauseColumns = append(selectClauseColumns, "entry")
+
+		selectClause := strings.Join(selectClauseColumns, ", ")
+
+		var columns []table.Column
+		var rows []table.Row
+		var err error
+
+		if query == "" {
+			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5", selectClause))
+		} else {
+			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", selectClause), query)
+		}
+		if err != nil {
+			panic(err)
+		}
+
+		// if the set of visible columns has changed, it won't be consistent with the current
+		// rows and we may get an index out of range panic - so clear the rows before setting
+		// up the columns
+		m.table.SetRows(nil) // XXX should we only do this if the column set changed?
+
+		m.table.SetColumns(columns)
+		m.table.SetRows(rows)
 	}
-	if m.showSessionID {
-		selectClauseColumns = append(selectClauseColumns, "session_id")
-	}
-	if m.showWorkingDirectory {
-		selectClauseColumns = append(selectClauseColumns, "cwd")
-	}
-
-	selectClauseColumns = append(selectClauseColumns, "entry")
-
-	selectClause := strings.Join(selectClauseColumns, ", ")
-
-	var columns []table.Column
-	var rows []table.Row
-	var err error
-	query := m.input.Value()
-	if query == "" {
-		columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5", selectClause))
-	} else {
-		columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", selectClause), query)
-	}
-	if err != nil {
-		panic(err)
-	}
-
-	// if the set of visible columns has changed, it won't be consistent with the current
-	// rows and we may get an index out of range panic - so clear the rows before setting
-	// up the columns
-	m.table.SetRows(nil) // XXX should we only do this if the column set changed?
-
-	m.table.SetColumns(columns)
-	m.table.SetRows(rows)
 
 	return m, tea.Batch(tableCmd, inputCmd)
 }
