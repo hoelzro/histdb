@@ -175,9 +175,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var err error
 
 		if query == "" {
-			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 5", selectClause))
+			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 100", selectClause))
 		} else {
-			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 5", selectClause), query)
+			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 100", selectClause), query)
 		}
 		if err != nil {
 			panic(err)
