@@ -244,7 +244,7 @@ func main() {
 	input.Focus()
 
 	t := table.New(
-		table.WithHeight(5),
+		table.WithHeight(20),
 	)
 	m := model{
 		db:    db,
