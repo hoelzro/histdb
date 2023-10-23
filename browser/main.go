@@ -228,6 +228,23 @@ func main() {
 		panic(err)
 	}
 
+	_, err = db.Exec(`
+CREATE TABLE IF NOT EXISTS today_db.history (
+    hostname,
+    session_id, -- shell PID
+    timestamp integer not null,
+    tz_offset integer,
+    history_id, -- $HISTCMD
+    cwd,
+    entry,
+    duration,
+    exit_status
+);
+	`)
+	if err != nil {
+		panic(err)
+	}
+
 	_, err = db.Exec("SELECT lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua')")
 	if err != nil {
 		panic(err)
