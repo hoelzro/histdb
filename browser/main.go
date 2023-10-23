@@ -116,6 +116,8 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	columnsChanged := false
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
@@ -138,10 +140,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
 			m.showWorkingDirectory = !m.showWorkingDirectory
+			columnsChanged = true
 		case key.Matches(msg, toggleTimestampKey):
 			m.showTimestamp = !m.showTimestamp
+			columnsChanged = true
 		case key.Matches(msg, toggleSessionIDKey):
 			m.showSessionID = !m.showSessionID
+			columnsChanged = true
 		}
 	}
 
@@ -153,7 +158,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.table, tableCmd = m.table.Update(msg)
 	m.input, inputCmd = m.input.Update(msg)
 
-	if query := m.input.Value(); query != previousQuery || len(m.table.Rows()) == 0 {
+	if query := m.input.Value(); query != previousQuery || len(m.table.Rows()) == 0 || columnsChanged {
 		selectClauseColumns := make([]string, 0)
 
 		if m.showTimestamp {
