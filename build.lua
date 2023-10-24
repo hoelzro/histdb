@@ -73,6 +73,21 @@ end
 
 local options = process_cli_args(arg)
 
+for i_mod = 1, #options do
+  local module_path = options[i_mod]
+  local ok = os.execute(string.format('luac -p %q', module_path))
+  if not ok then
+    os.exit(1)
+  end
+end
+
+if options.entrypoint then
+  local ok = os.execute(string.format('luac -p %q', options.entrypoint))
+  if not ok then
+    os.exit(1)
+  end
+end
+
 local output = io.stdout
 
 if options.output_filename then
