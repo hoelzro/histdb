@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -218,6 +219,19 @@ func main() {
 			"/home/rob/projects/sqlite-lua-vtable/lua-vtable.so",
 		},
 	})
+
+	st, err := os.Stat("/home/rob/.cache/histdb.db")
+	if err != nil {
+		panic(err)
+	}
+
+	// if the rollup database is too old, just run histdb to refresh it
+	if time.Now().Format(time.DateOnly) != st.ModTime().Format(time.DateOnly) {
+		err := exec.Command("histdb", ".schema").Run()
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	// XXX probably want to do the whole roll-up and ATTACH thing too?
 	db, err := sql.Open("sqlite3-histdb-extensions", "/home/rob/.cache/histdb.db")
