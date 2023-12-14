@@ -115,6 +115,135 @@ local invariants = {
     direct_sql = [[SELECT * FROM (SELECT DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp, entry FROM history_before_today WHERE TYPEOF(timestamp) = 'integer' UNION ALL SELECT DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp, entry FROM today_db.history WHERE TYPEOF(timestamp) = 'integer') ORDER BY timestamp]],
     vtab_sql   = 'SELECT timestamp, entry FROM h ORDER BY timestamp',
   },
+
+  -- ordering by COLUMN should be the same
+  {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id',
+    direct_sql = [[
+SELECT timestamp, entry FROM (
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    entry
+  FROM history_before_today
+  WHERE TYPEOF(timestamp) = 'integer'
+
+  UNION ALL
+
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    entry
+  FROM today_db.history
+  WHERE TYPEOF(timestamp) = 'integer'
+)
+ORDER BY session_id
+    ]],
+  },
+
+  -- ordering by (timestamp, COLUMN) should be the same
+  {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY timestamp, session_id',
+    direct_sql = [[
+SELECT timestamp, entry FROM (
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    entry
+  FROM history_before_today
+  WHERE TYPEOF(timestamp) = 'integer'
+
+  UNION ALL
+
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    entry
+  FROM today_db.history
+  WHERE TYPEOF(timestamp) = 'integer'
+)
+ORDER BY timestamp, session_id
+    ]],
+  },
+
+  -- ordering by (COLUMN, timestamp) should be the same
+  {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id, timestamp',
+    direct_sql = [[
+SELECT timestamp, entry FROM (
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    entry
+  FROM history_before_today
+  WHERE TYPEOF(timestamp) = 'integer'
+
+  UNION ALL
+
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    entry
+  FROM today_db.history
+  WHERE TYPEOF(timestamp) = 'integer'
+)
+ORDER BY session_id, timestamp
+    ]],
+  },
+
+  -- ordering by (COLUMN, timestamp, COLUMN) should be the same
+  {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id, timestamp, duration',
+    direct_sql = [[
+SELECT timestamp, entry FROM (
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    duration,
+    entry
+  FROM history_before_today
+  WHERE TYPEOF(timestamp) = 'integer'
+
+  UNION ALL
+
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    duration,
+    entry
+  FROM today_db.history
+  WHERE TYPEOF(timestamp) = 'integer'
+)
+ORDER BY session_id, timestamp, duration
+    ]],
+  },
+
+  -- ordering by (COLUMN, COLUMN, timestamp) should be the same
+  {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id, duration, timestamp',
+    direct_sql = [[
+SELECT timestamp, entry FROM (
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    duration,
+    entry
+  FROM history_before_today
+  WHERE TYPEOF(timestamp) = 'integer'
+
+  UNION ALL
+
+  SELECT
+    DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+    session_id,
+    duration,
+    entry
+  FROM today_db.history
+  WHERE TYPEOF(timestamp) = 'integer'
+)
+ORDER BY session_id, duration, timestamp
+    ]],
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
