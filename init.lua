@@ -88,11 +88,21 @@ function mod.best_index(vtab, info)
     index_str = table.concat(index_str, ':')
   end
 
-  if #info.order_by > 0 then
+  -- If we're sorting by timestamp and timestamp only, we can benefit from the natural ordering of
+  -- the data within the rollup table and the daily table.  Since the tables are already ordered
+  -- by timestamp, we can just UNION ALL the results from each (which table is on the left/right
+  -- side of the UNION depends on whether the ORDER BY is ASC or DESC).  Sadly, we can't do this
+  -- if ordering by any other column - we have to do the ordering after the UNION ALL takes place.
+  --
+  -- We can't even do it if the timestamp is the first column in the ORDER BY, since SQLite is
+  -- unaware that the data is already ordered by timestamp and will instead order the results by
+  -- the second ORDER BY column (unless we ORDER BY timestamp first outside of the UNION ALL, which
+  -- loses our optimization here anyway), and we can't consume a subset of the ORDER BY columns here.
+  --
+  -- See the filter method for the implementation.
+  if #info.order_by == 1 and COLUMNS[info.order_by[1].column] == 'timestamp' then
     index_str = (index_str or '') .. '::'
 
-    -- XXX guardrail - mostly in place to make sure I'm not being dumb about order_by_consumed, but also to make sure that my use of the columns over in the filter method is correct
-    assert(#info.order_by == 1 and COLUMNS[info.order_by[1].column] == 'timestamp', 'ordering by more than one column, or a non-timestamp column, has yet to be implemented')
     order_by_consumed = true
 
     for i = 1, #info.order_by do
