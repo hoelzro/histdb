@@ -99,14 +99,13 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 		tableColumns = append(tableColumns, tableColumn)
 	}
 
-	for rows.Next() {
-		// XXX do this once
-		rowValues := make([]string, len(columns))
-		scanPointers := make([]any, len(columns))
-		for i := range rowValues {
-			scanPointers[i] = &rowValues[i]
-		}
+	rowValues := make([]string, len(columns))
+	scanPointers := make([]any, len(columns))
+	for i := range rowValues {
+		scanPointers[i] = &rowValues[i]
+	}
 
+	for rows.Next() {
 		err := rows.Scan(scanPointers...)
 		if err != nil {
 			return nil, nil, err
