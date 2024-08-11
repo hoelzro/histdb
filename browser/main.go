@@ -88,10 +88,16 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 			columnWidth = 20
 		}
 
-		tableColumns = append(tableColumns, table.NewColumn(columnName, columnName, columnWidth))
-	}
+		var tableColumn table.Column
 
-	tableColumns[len(tableColumns)-1] = table.NewFlexColumn(tableColumns[len(tableColumns)-1].Key(), tableColumns[len(tableColumns)-1].Title(), 1)
+		if columnName == "entry" {
+			tableColumn = table.NewFlexColumn(columnName, columnName, 1)
+		} else {
+			tableColumn = table.NewColumn(columnName, columnName, columnWidth)
+		}
+
+		tableColumns = append(tableColumns, tableColumn)
+	}
 
 	for rows.Next() {
 		// XXX do this once
