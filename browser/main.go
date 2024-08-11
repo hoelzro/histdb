@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	defaultStyle   = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
-	headerStyle    = lipgloss.NewStyle().Bold(true)
-	highlightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff87d7")).Bold(true)
+	defaultStyle       = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
+	headerStyle        = lipgloss.NewStyle().Bold(true)
+	highlightStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff87d7")).Bold(true)
+	failedCommandStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Bold(true)
 )
 
 var toggleWorkingDirectoryKey = key.NewBinding(
@@ -74,17 +75,21 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 		return nil, nil, err
 	}
 
-	tableColumns := make([]table.Column, len(columns))
+	tableColumns := make([]table.Column, 0, len(columns))
 
 	fixedWidthTotal := 0
 
-	for i, columnName := range columns {
+	for _, columnName := range columns {
+		if columnName == "exit_status" {
+			continue
+		}
+
 		columnWidth := columnWidths[columnName]
 		if columnWidth == 0 {
 			columnWidth = 20
 		}
 
-		tableColumns[i] = table.NewColumn(columnName, columnName, columnWidth)
+		tableColumns = append(tableColumns, table.NewColumn(columnName, columnName, columnWidth))
 
 		fixedWidthTotal += columnWidth
 	}
@@ -191,9 +196,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var err error
 
 		if query == "" {
-			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 100", selectClause))
+			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 100", selectClause))
 		} else {
-			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 100", selectClause), query)
+			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 100", selectClause), query)
 		}
 		if err != nil {
 			panic(err)
@@ -295,6 +300,10 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 		WithRowStyleFunc(func(in table.RowStyleFuncInput) lipgloss.Style {
 			if in.IsHighlighted {
 				return highlightStyle
+			}
+			exitStatus := in.Row.Data["exit_status"].(string)
+			if exitStatus != "" && exitStatus != "0" && exitStatus != "148" {
+				return failedCommandStyle
 			}
 			return defaultStyle
 		})
