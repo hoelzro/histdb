@@ -9,16 +9,18 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/evertras/bubble-table/table"
 	"github.com/mattn/go-sqlite3"
-
-	"golang.org/x/exp/slices"
 )
 
-var baseStyle = lipgloss.NewStyle()
+var (
+	defaultStyle   = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
+	headerStyle    = lipgloss.NewStyle().Bold(true)
+	highlightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff87d7")).Bold(true)
+)
 
 var toggleWorkingDirectoryKey = key.NewBinding(
 	key.WithKeys("f2"),
@@ -37,7 +39,7 @@ var toggleSessionIDKey = key.NewBinding(
 
 var columnWidths = map[string]int{
 	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
-	"session_id": 10, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
+	"session_id": 11, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
 	"cwd":        70, // based on my history
 }
 
@@ -56,7 +58,7 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return textinput.Blink
+	return m.table.Init()
 }
 
 func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
@@ -73,8 +75,6 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 	}
 
 	tableColumns := make([]table.Column, len(columns))
-	currentRow := table.Row(make([]string, len(columns)))
-	scanPointers := make([]any, len(columns))
 
 	fixedWidthTotal := 0
 
@@ -84,29 +84,38 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 			columnWidth = 20
 		}
 
-		tableColumns[i] = table.Column{
-			Title: columnName,
-			Width: columnWidth,
-		}
-		scanPointers[i] = &currentRow[i]
+		tableColumns[i] = table.NewColumn(columnName, columnName, columnWidth)
 
 		fixedWidthTotal += columnWidth
 	}
 
 	if m.windowWidth > 0 {
-		fixedWidthTotal -= tableColumns[len(tableColumns)-1].Width
+		fixedWidthTotal -= tableColumns[len(tableColumns)-1].Width()
 
 		// set the width of the rightmost column to be whatever we have left
 		// XXX always the rightmost column? or always the entry column?
-		tableColumns[len(tableColumns)-1].Width = m.windowWidth - fixedWidthTotal
+		tableColumns[len(tableColumns)-1] = table.NewColumn(tableColumns[len(tableColumns)-1].Key(), tableColumns[len(tableColumns)-1].Title(), m.windowWidth-fixedWidthTotal)
 	}
 
 	for rows.Next() {
+		// XXX do this once
+		rowValues := make([]string, len(columns))
+		scanPointers := make([]any, len(columns))
+		for i := range rowValues {
+			scanPointers[i] = &rowValues[i]
+		}
+
 		err := rows.Scan(scanPointers...)
 		if err != nil {
 			return nil, nil, err
 		}
-		tableRows = append(tableRows, slices.Clone(currentRow))
+
+		rowData := make(map[string]any)
+
+		for i, columnName := range columns {
+			rowData[columnName] = rowValues[i]
+		}
+		tableRows = append(tableRows, table.NewRow(rowData))
 	}
 
 	if err := rows.Err(); err != nil {
@@ -117,6 +126,9 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var tableCmd tea.Cmd
+	var inputCmd tea.Cmd
+
 	columnsChanged := false
 
 	switch msg := msg.(type) {
@@ -128,13 +140,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "down":
-			m.table.MoveDown(1)
+			m.table, tableCmd = m.table.Update(tea.KeyMsg{Type: tea.KeyDown})
 		case "up":
-			m.table.MoveUp(1)
+			m.table, tableCmd = m.table.Update(tea.KeyMsg{Type: tea.KeyUp})
 		case "enter":
-			if selectedRow := m.table.SelectedRow(); selectedRow != nil {
-				m.selection = selectedRow[len(selectedRow)-1]
-			}
+			m.selection = m.table.HighlightedRow().Data["entry"].(string)
 			return m, tea.Quit
 		}
 
@@ -152,15 +162,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	var tableCmd tea.Cmd
-	var inputCmd tea.Cmd
-
 	previousQuery := m.input.Value()
 
-	m.table, tableCmd = m.table.Update(msg)
+	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+		m.table, tableCmd = m.table.Update(msg)
+	}
 	m.input, inputCmd = m.input.Update(msg)
 
-	if query := m.input.Value(); query != previousQuery || len(m.table.Rows()) == 0 || columnsChanged {
+	if query := m.input.Value(); query != previousQuery || m.table.TotalRows() == 0 || columnsChanged {
 		selectClauseColumns := make([]string, 0)
 
 		if m.showTimestamp {
@@ -190,20 +199,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			panic(err)
 		}
 
-		// if the set of visible columns has changed, it won't be consistent with the current
-		// rows and we may get an index out of range panic - so clear the rows before setting
-		// up the columns
-		m.table.SetRows(nil) // XXX should we only do this if the column set changed?
-
-		m.table.SetColumns(columns)
-		m.table.SetRows(rows)
+		m.table = m.table.WithColumns(columns)
+		m.table = m.table.WithRows(rows)
 	}
 
 	return m, tea.Batch(tableCmd, inputCmd)
 }
 
 func (m model) View() string {
-	return m.input.View() + "\n" + baseStyle.Render(m.table.View()) + "\n"
+	return m.input.View() + "\n" + m.table.View() + "\n"
 }
 
 // XXX highlight matching parts of entry in table rows
@@ -280,9 +284,21 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 	input := textinput.New()
 	input.Focus()
 
-	t := table.New(
-		table.WithHeight(20),
-	)
+	t := table.New(nil).
+		WithPageSize(20).            // only show the top 20 rows
+		Border(table.Border{}).      // don't show any borders
+		Focused(true).               // needed to display row highlights
+		WithFooterVisibility(false). // don't show the paging widget
+		// styling
+		HeaderStyle(headerStyle).
+		WithBaseStyle(defaultStyle).
+		WithRowStyleFunc(func(in table.RowStyleFuncInput) lipgloss.Style {
+			if in.IsHighlighted {
+				return highlightStyle
+			}
+			return defaultStyle
+		})
+
 	m := model{
 		db:    db,
 		input: input,
