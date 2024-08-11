@@ -51,8 +51,6 @@ type model struct {
 
 	selection string
 
-	windowWidth int
-
 	showTimestamp        bool
 	showWorkingDirectory bool
 	showSessionID        bool
@@ -77,8 +75,6 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 
 	tableColumns := make([]table.Column, 0, len(columns))
 
-	fixedWidthTotal := 0
-
 	for _, columnName := range columns {
 		if columnName == "exit_status" {
 			continue
@@ -90,17 +86,9 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 		}
 
 		tableColumns = append(tableColumns, table.NewColumn(columnName, columnName, columnWidth))
-
-		fixedWidthTotal += columnWidth
 	}
 
-	if m.windowWidth > 0 {
-		fixedWidthTotal -= tableColumns[len(tableColumns)-1].Width()
-
-		// set the width of the rightmost column to be whatever we have left
-		// XXX always the rightmost column? or always the entry column?
-		tableColumns[len(tableColumns)-1] = table.NewColumn(tableColumns[len(tableColumns)-1].Key(), tableColumns[len(tableColumns)-1].Title(), m.windowWidth-fixedWidthTotal)
-	}
+	tableColumns[len(tableColumns)-1] = table.NewFlexColumn(tableColumns[len(tableColumns)-1].Key(), tableColumns[len(tableColumns)-1].Title(), 1)
 
 	for rows.Next() {
 		// XXX do this once
@@ -138,7 +126,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.windowWidth = msg.Width
+		m.table = m.table.WithTargetWidth(msg.Width)
 		columnsChanged = true
 	case tea.KeyMsg:
 		switch msg.String() {
