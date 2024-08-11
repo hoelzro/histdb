@@ -40,7 +40,7 @@ var toggleSessionIDKey = key.NewBinding(
 
 var columnWidths = map[string]int{
 	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
-	"session_id": 11, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
+	"session_id": 10, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
 	"cwd":        70, // based on my history
 }
 
@@ -287,8 +287,10 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 	input.Focus()
 
 	t := table.New(nil).
-		WithPageSize(20).            // only show the top 20 rows
-		Border(table.Border{}).      // don't show any borders
+		WithPageSize(20). // only show the top 20 rows
+		Border(table.Border{
+			InnerDivider: " ",
+		}).                          // don't show any borders, but space out cells
 		Focused(true).               // needed to display row highlights
 		WithFooterVisibility(false). // don't show the paging widget
 		WithMultiline(true).
