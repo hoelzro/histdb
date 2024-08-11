@@ -212,13 +212,6 @@ func (m model) View() string {
 	return m.input.View() + "\n" + m.table.View() + "\n"
 }
 
-// XXX highlight matching parts of entry in table rows
-// XXX hotkey to toggle various columns
-// XXX hotkey to toggle local vs global history
-// XXX hotkey to convert query to SQL
-// XXX load today's DB too
-
-// XXX create a dummy application that live-filters table rows against a query from a textbox
 func main() {
 	sql.Register("sqlite3-histdb-extensions", &sqlite3.SQLiteDriver{
 		Extensions: []string{
