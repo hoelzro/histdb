@@ -285,6 +285,7 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 		Border(table.Border{}).      // don't show any borders
 		Focused(true).               // needed to display row highlights
 		WithFooterVisibility(false). // don't show the paging widget
+		WithMultiline(true).
 		// styling
 		HeaderStyle(headerStyle).
 		WithBaseStyle(defaultStyle).
