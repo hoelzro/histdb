@@ -57,7 +57,10 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
-	return m.table.Init()
+	return tea.Batch(
+		textinput.Blink,
+		m.table.Init(),
+	)
 }
 
 func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
