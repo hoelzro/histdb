@@ -130,11 +130,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		columnsChanged = true
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "esc":
 			return m, tea.Quit
-		case "down":
+		case "ctrl+j", "down":
 			m.table, tableCmd = m.table.Update(tea.KeyMsg{Type: tea.KeyDown})
-		case "up":
+		case "ctrl+k", "up":
 			m.table, tableCmd = m.table.Update(tea.KeyMsg{Type: tea.KeyUp})
 		case "enter":
 			m.selection = m.table.HighlightedRow().Data["entry"].(string)
