@@ -56,14 +56,14 @@ type model struct {
 	showSessionID        bool
 }
 
-func (m model) Init() tea.Cmd {
+func (m *model) Init() tea.Cmd {
 	return tea.Batch(
 		textinput.Blink,
 		m.table.Init(),
 	)
 }
 
-func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
+func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
 	rows, err := m.db.Query(sql, args...)
 	if err != nil {
 		return nil, nil, err
@@ -126,7 +126,9 @@ func (m model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tabl
 	return tableColumns, tableRows, err
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	newModel := *m
+
 	var tableCmd tea.Cmd
 	var inputCmd tea.Cmd
 
@@ -134,52 +136,53 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.table = m.table.WithTargetWidth(msg.Width)
+		newModel.table = newModel.table.WithTargetWidth(msg.Width)
 		columnsChanged = true
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			return m, tea.Quit
+			return &newModel, tea.Quit
 		case "ctrl+j", "down":
-			m.table, tableCmd = m.table.Update(tea.KeyMsg{Type: tea.KeyDown})
+			newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyDown})
 		case "ctrl+k", "up":
-			m.table, tableCmd = m.table.Update(tea.KeyMsg{Type: tea.KeyUp})
+			newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyUp})
 		case "enter":
-			m.selection = m.table.HighlightedRow().Data["entry"].(string)
-			return m, tea.Quit
+			newModel.selection = newModel.table.HighlightedRow().Data["entry"].(string)
+			return &newModel, tea.Quit
 		}
 
 		// XXX merge these two (put ctrl+c into a keymap)
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
-			m.showWorkingDirectory = !m.showWorkingDirectory
+			newModel.showWorkingDirectory = !newModel.showWorkingDirectory
 			columnsChanged = true
 		case key.Matches(msg, toggleTimestampKey):
-			m.showTimestamp = !m.showTimestamp
+			newModel.showTimestamp = !newModel.showTimestamp
 			columnsChanged = true
 		case key.Matches(msg, toggleSessionIDKey):
-			m.showSessionID = !m.showSessionID
+			newModel.showSessionID = !newModel.showSessionID
 			columnsChanged = true
 		}
 	}
 
-	previousQuery := m.input.Value()
+	previousQuery := newModel.input.Value()
 
 	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
-		m.table, tableCmd = m.table.Update(msg)
+		newModel.table, tableCmd = newModel.table.Update(msg)
 	}
-	m.input, inputCmd = m.input.Update(msg)
 
-	if query := m.input.Value(); query != previousQuery || m.table.TotalRows() == 0 || columnsChanged {
+	newModel.input, inputCmd = newModel.input.Update(msg)
+
+	if query := newModel.input.Value(); query != previousQuery || newModel.table.TotalRows() == 0 || columnsChanged {
 		selectClauseColumns := make([]string, 0)
 
-		if m.showTimestamp {
+		if newModel.showTimestamp {
 			selectClauseColumns = append(selectClauseColumns, "timestamp")
 		}
-		if m.showSessionID {
+		if newModel.showSessionID {
 			selectClauseColumns = append(selectClauseColumns, "session_id")
 		}
-		if m.showWorkingDirectory {
+		if newModel.showWorkingDirectory {
 			selectClauseColumns = append(selectClauseColumns, "cwd")
 		}
 
@@ -192,22 +195,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var err error
 
 		if query == "" {
-			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 100", selectClause))
+			columns, rows, err = newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 100", selectClause))
 		} else {
-			columns, rows, err = m.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 100", selectClause), query)
+			columns, rows, err = newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 100", selectClause), query)
 		}
 		if err != nil {
 			panic(err)
 		}
 
-		m.table = m.table.WithColumns(columns)
-		m.table = m.table.WithRows(rows)
+		newModel.table = newModel.table.WithColumns(columns)
+		newModel.table = newModel.table.WithRows(rows)
 	}
 
-	return m, tea.Batch(tableCmd, inputCmd)
+	return &newModel, tea.Batch(tableCmd, inputCmd)
 }
 
-func (m model) View() string {
+func (m *model) View() string {
 	return m.input.View() + "\n" + m.table.View() + "\n"
 }
 
@@ -300,7 +303,7 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 			return defaultStyle
 		})
 
-	m := model{
+	m := &model{
 		db:    db,
 		input: input,
 		table: t,
@@ -312,7 +315,7 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 		panic(err)
 	}
 
-	m = resModel.(model)
+	m = resModel.(*model)
 	if m.selection != "" {
 		fmt.Println(m.selection)
 	}
