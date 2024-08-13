@@ -173,7 +173,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	newModel.input, inputCmd = newModel.input.Update(msg)
 
-	if query := newModel.input.Value(); query != previousQuery || newModel.table.TotalRows() == 0 || columnsChanged {
+	if query := newModel.input.Value(); query != previousQuery || columnsChanged {
 		selectClauseColumns := make([]string, 0)
 
 		if newModel.showTimestamp {
