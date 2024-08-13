@@ -58,7 +58,7 @@ type model struct {
 
 func (m *model) Init() tea.Cmd {
 	return tea.Batch(
-		textinput.Blink,
+		m.input.Focus(),
 		m.table.Init(),
 	)
 }
@@ -279,7 +279,6 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 	lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(os.Stderr))
 
 	input := textinput.New()
-	input.Focus()
 
 	t := table.New(nil).
 		WithPageSize(20). // only show the top 20 rows
