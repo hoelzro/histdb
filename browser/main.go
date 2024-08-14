@@ -38,6 +38,11 @@ var toggleSessionIDKey = key.NewBinding(
 	key.WithHelp("f4", "Toggle session ID column"),
 )
 
+var toggleFailedCommandsKey = key.NewBinding(
+	key.WithKeys("f5"),
+	key.WithHelp("f5", "Toggle failed commands"),
+)
+
 var columnWidths = map[string]int{
 	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
 	"session_id": 10, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
@@ -54,6 +59,8 @@ type model struct {
 	showTimestamp        bool
 	showWorkingDirectory bool
 	showSessionID        bool
+
+	showFailedCommands bool
 }
 
 func (m *model) Init() tea.Cmd {
@@ -162,6 +169,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, toggleSessionIDKey):
 			newModel.showSessionID = !newModel.showSessionID
 			columnsChanged = true
+		case key.Matches(msg, toggleFailedCommandsKey):
+			newModel.showFailedCommands = !newModel.showFailedCommands
+			columnsChanged = true
 		}
 	}
 
@@ -198,6 +208,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if query != "" {
 			whereClausePredicates = append(whereClausePredicates, "entry MATCH ?")
 			queryParams = append(queryParams, query)
+		}
+
+		if !newModel.showFailedCommands {
+			whereClausePredicates = append(whereClausePredicates, "exit_status IN (0, 148)")
 		}
 
 		whereClause := strings.Join(whereClausePredicates, " AND ")
@@ -311,7 +325,8 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 		input: input,
 		table: t,
 
-		showTimestamp: true,
+		showTimestamp:      true,
+		showFailedCommands: true,
 	}
 	resModel, err := tea.NewProgram(m, tea.WithOutput(os.Stderr)).Run()
 	if err != nil {
