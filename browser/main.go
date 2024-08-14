@@ -190,15 +190,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		selectClause := strings.Join(selectClauseColumns, ", ")
 
-		var columns []table.Column
-		var rows []table.Row
-		var err error
-
-		if query == "" {
-			columns, rows, err = newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL ORDER BY timestamp DESC LIMIT 100", selectClause))
-		} else {
-			columns, rows, err = newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE timestamp IS NOT NULL AND entry MATCH ? ORDER BY timestamp DESC LIMIT 100", selectClause), query)
+		whereClausePredicates := []string{
+			"timestamp IS NOT NULL",
 		}
+		queryParams := make([]any, 0)
+
+		if query != "" {
+			whereClausePredicates = append(whereClausePredicates, "entry MATCH ?")
+			queryParams = append(queryParams, query)
+		}
+
+		whereClause := strings.Join(whereClausePredicates, " AND ")
+
+		columns, rows, err := newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE %s ORDER BY timestamp DESC LIMIT 100", selectClause, whereClause), queryParams...)
 		if err != nil {
 			panic(err)
 		}
