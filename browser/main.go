@@ -45,6 +45,11 @@ var toggleFailedCommandsKey = key.NewBinding(
 	key.WithHelp("f5", "Toggle failed commands"),
 )
 
+var toggleLocalCommandsKey = key.NewBinding(
+	key.WithKeys("f6"),
+	key.WithHelp("f6", "Toggle local/global commands"),
+)
+
 var columnWidths = map[string]int{
 	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
 	"session_id": 10, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
@@ -63,6 +68,7 @@ type model struct {
 	showSessionID        bool
 
 	showFailedCommands bool
+	showGlobalCommands bool
 
 	horizonOID uint64
 	sessionID  string
@@ -177,6 +183,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, toggleFailedCommandsKey):
 			newModel.showFailedCommands = !newModel.showFailedCommands
 			columnsChanged = true
+		case key.Matches(msg, toggleLocalCommandsKey):
+			// XXX if horizon OID is not provided, warn the user and do nothing
+			newModel.showGlobalCommands = !newModel.showGlobalCommands
+			columnsChanged = true
 		}
 	}
 
@@ -219,7 +229,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			whereClausePredicates = append(whereClausePredicates, "exit_status IN (0, 148)")
 		}
 
-		if newModel.horizonOID != 0 {
+		if !newModel.showGlobalCommands && newModel.horizonOID != 0 {
 			whereClausePredicates = append(whereClausePredicates, "(oid <= ? OR session_id = ?)")
 			queryParams = append(queryParams, newModel.horizonOID)
 			queryParams = append(queryParams, newModel.sessionID)
@@ -345,6 +355,7 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 
 		showTimestamp:      true,
 		showFailedCommands: true,
+		showGlobalCommands: true,
 
 		horizonOID: horizonOID,
 		sessionID:  sessionID,
