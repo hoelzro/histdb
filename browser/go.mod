@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.9.1
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/muesli/termenv v0.15.2
+	github.com/spf13/pflag v1.0.5
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 )
 

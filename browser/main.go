@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/evertras/bubble-table/table"
 	"github.com/mattn/go-sqlite3"
+	"github.com/spf13/pflag"
 )
 
 var (
@@ -61,6 +63,9 @@ type model struct {
 	showSessionID        bool
 
 	showFailedCommands bool
+
+	horizonOID uint64
+	sessionID  string
 }
 
 func (m *model) Init() tea.Cmd {
@@ -214,6 +219,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			whereClausePredicates = append(whereClausePredicates, "exit_status IN (0, 148)")
 		}
 
+		if newModel.horizonOID != 0 {
+			whereClausePredicates = append(whereClausePredicates, "(oid <= ? OR session_id = ?)")
+			queryParams = append(queryParams, newModel.horizonOID)
+			queryParams = append(queryParams, newModel.sessionID)
+		}
+
 		whereClause := strings.Join(whereClausePredicates, " AND ")
 
 		columns, rows, err := newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE %s ORDER BY timestamp DESC LIMIT 100", selectClause, whereClause), queryParams...)
@@ -233,6 +244,13 @@ func (m *model) View() string {
 }
 
 func main() {
+	horizonOID := uint64(0)
+	sessionID := ""
+
+	pflag.Uint64Var(&horizonOID, "horizon-oid", 0, "The maximum OID to consider for results outside of this session")
+	pflag.StringVar(&sessionID, "session-id", strconv.Itoa(os.Getppid()), "The current session ID")
+	pflag.Parse()
+
 	sql.Register("sqlite3-histdb-extensions", &sqlite3.SQLiteDriver{
 		Extensions: []string{
 			"/home/rob/projects/sqlite-lua-vtable/lua-vtable.so",
@@ -327,6 +345,9 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 
 		showTimestamp:      true,
 		showFailedCommands: true,
+
+		horizonOID: horizonOID,
+		sessionID:  sessionID,
 	}
 	resModel, err := tea.NewProgram(m, tea.WithOutput(os.Stderr)).Run()
 	if err != nil {
