@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -256,10 +258,44 @@ func (m *model) View() string {
 func main() {
 	horizonTimestamp := uint64(0)
 	sessionID := ""
+	logFilename := ""
+	logLevel := "info"
 
 	pflag.Uint64Var(&horizonTimestamp, "horizon-timestamp", 0, "The maximum timestamp to consider for results outside of this session")
 	pflag.StringVar(&sessionID, "session-id", strconv.Itoa(os.Getppid()), "The current session ID")
+	pflag.StringVar(&logFilename, "log-filename", "", "The filename to log to")
+	pflag.StringVar(&logLevel, "log-level", "info", "The log level to log at")
 	pflag.Parse()
+
+	if logFilename != "" {
+		f, err := tea.LogToFile(logFilename, logLevel)
+		if err != nil {
+			panic(err)
+		}
+
+		defer f.Close()
+
+		var level slog.Level
+
+		switch logLevel {
+		case "debug":
+			level = slog.LevelDebug
+		case "info":
+			level = slog.LevelInfo
+		case "warn":
+			level = slog.LevelWarn
+		case "error":
+			level = slog.LevelError
+		default:
+			panic("Invalid log level")
+		}
+
+		slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{
+			Level: level,
+		})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}
 
 	sql.Register("sqlite3-histdb-extensions", &sqlite3.SQLiteDriver{
 		Extensions: []string{
