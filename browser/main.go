@@ -70,8 +70,8 @@ type model struct {
 	showFailedCommands bool
 	showGlobalCommands bool
 
-	horizonOID uint64
-	sessionID  string
+	horizonTimestamp time.Time
+	sessionID        string
 }
 
 func (m *model) Init() tea.Cmd {
@@ -184,7 +184,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			newModel.showFailedCommands = !newModel.showFailedCommands
 			columnsChanged = true
 		case key.Matches(msg, toggleLocalCommandsKey):
-			// XXX if horizon OID is not provided, warn the user and do nothing
+			// XXX if horizon timestamp is not provided, warn the user and do nothing
 			newModel.showGlobalCommands = !newModel.showGlobalCommands
 			columnsChanged = true
 		}
@@ -229,9 +229,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			whereClausePredicates = append(whereClausePredicates, "exit_status IN (0, 148)")
 		}
 
-		if !newModel.showGlobalCommands && newModel.horizonOID != 0 {
-			whereClausePredicates = append(whereClausePredicates, "(oid <= ? OR session_id = ?)")
-			queryParams = append(queryParams, newModel.horizonOID)
+		if !newModel.showGlobalCommands && !newModel.horizonTimestamp.IsZero() {
+			whereClausePredicates = append(whereClausePredicates, "(timestamp <= ? OR session_id = ?)")
+			queryParams = append(queryParams, newModel.horizonTimestamp.Unix())
 			queryParams = append(queryParams, newModel.sessionID)
 		}
 
@@ -254,10 +254,10 @@ func (m *model) View() string {
 }
 
 func main() {
-	horizonOID := uint64(0)
+	horizonTimestamp := uint64(0)
 	sessionID := ""
 
-	pflag.Uint64Var(&horizonOID, "horizon-oid", 0, "The maximum OID to consider for results outside of this session")
+	pflag.Uint64Var(&horizonTimestamp, "horizon-timestamp", 0, "The maximum timestamp to consider for results outside of this session")
 	pflag.StringVar(&sessionID, "session-id", strconv.Itoa(os.Getppid()), "The current session ID")
 	pflag.Parse()
 
@@ -357,8 +357,8 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 		showFailedCommands: true,
 		showGlobalCommands: true,
 
-		horizonOID: horizonOID,
-		sessionID:  sessionID,
+		horizonTimestamp: time.Unix(int64(horizonTimestamp), 0),
+		sessionID:        sessionID,
 	}
 	resModel, err := tea.NewProgram(m, tea.WithOutput(os.Stderr)).Run()
 	if err != nil {
