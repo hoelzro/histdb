@@ -84,6 +84,8 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
+	slog.Debug("running SQL", "query", sql, "args", fmt.Sprintf("%#v", args))
+	startTime := time.Now()
 	rows, err := m.db.Query(sql, args...)
 	if err != nil {
 		return nil, nil, err
@@ -142,6 +144,8 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
+
+	slog.Debug("# rows", "row_count", len(tableRows), "duration", time.Since(startTime))
 
 	return tableColumns, tableRows, err
 }
