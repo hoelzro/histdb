@@ -178,21 +178,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// XXX merge these two (put ctrl+c into a keymap)
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
+			slog.Info("toggling working directory display")
 			newModel.showWorkingDirectory = !newModel.showWorkingDirectory
 			columnsChanged = true
 		case key.Matches(msg, toggleTimestampKey):
+			slog.Info("toggling timestamp display")
 			newModel.showTimestamp = !newModel.showTimestamp
 			columnsChanged = true
 		case key.Matches(msg, toggleSessionIDKey):
+			slog.Info("toggling session ID display")
 			newModel.showSessionID = !newModel.showSessionID
 			columnsChanged = true
 		case key.Matches(msg, toggleFailedCommandsKey):
+			slog.Info("toggling failed commands display")
 			newModel.showFailedCommands = !newModel.showFailedCommands
 			columnsChanged = true
 		case key.Matches(msg, toggleLocalCommandsKey):
-			// XXX if horizon timestamp is not provided, warn the user and do nothing
-			newModel.showGlobalCommands = !newModel.showGlobalCommands
-			columnsChanged = true
+			if newModel.horizonTimestamp.IsZero() {
+				slog.Warn("horizon timestamp not set, not toggling local/global commands display")
+			} else {
+				slog.Info("toggling local/global commands display")
+				newModel.showGlobalCommands = !newModel.showGlobalCommands
+				columnsChanged = true
+			}
 		}
 	}
 
