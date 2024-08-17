@@ -13,6 +13,7 @@ local COLUMNS = {
   [0] = 'hostname',
   'session_id',
   'timestamp',
+  'raw_timestamp',
   'history_id',
   'cwd',
   'entry',
@@ -32,10 +33,12 @@ function mod.connect(db, args)
     end
   end
 
+  -- XXX inspect the schema for main.history and use that?
   db:declare_vtab [[CREATE TABLE _ (
     hostname HIDDEN,
     session_id TEXT, -- shell PID
     timestamp text not null,
+    raw_timestamp HIDDEN integer not null,
     history_id HIDDEN, -- $HISTCMD
     cwd,
     entry,
@@ -251,6 +254,7 @@ function mod.filter(cursor, index_num, index_name, args)
       hostname,
       session_id,
       DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+      timestamp AS raw_timestamp,
       history_id,
       cwd,
       entry,
