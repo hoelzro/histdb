@@ -236,7 +236,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if !newModel.showGlobalCommands && !newModel.horizonTimestamp.IsZero() {
-			whereClausePredicates = append(whereClausePredicates, "(timestamp <= ? OR session_id = ?)")
+			whereClausePredicates = append(whereClausePredicates, "(raw_timestamp <= ? OR session_id = ?)")
 			queryParams = append(queryParams, newModel.horizonTimestamp.Unix())
 			queryParams = append(queryParams, newModel.sessionID)
 		}
