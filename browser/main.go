@@ -25,6 +25,9 @@ import (
 //go:embed histdb.lua
 var histDBSource string
 
+//go:embed lua-vtable.so
+var vtableExtension []byte
+
 var (
 	defaultStyle       = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
 	headerStyle        = lipgloss.NewStyle().Bold(true)
@@ -314,9 +317,14 @@ func main() {
 		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	}
 
+	err := os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
+	if err != nil {
+		panic(err)
+	}
+
 	sql.Register("sqlite3-histdb-extensions", &sqlite3.SQLiteDriver{
 		Extensions: []string{
-			"/home/rob/projects/sqlite-lua-vtable/lua-vtable.so",
+			"/home/rob/.cache/lua-vtable.so",
 		},
 	})
 
