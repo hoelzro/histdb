@@ -18,7 +18,12 @@ import (
 	"github.com/evertras/bubble-table/table"
 	"github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
+
+	_ "embed"
 )
+
+//go:embed histdb.lua
+var histDBSource string
 
 var (
 	defaultStyle       = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
@@ -360,7 +365,7 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 		panic(err)
 	}
 
-	_, err = db.Exec("SELECT lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua')")
+	_, err = db.Exec("SELECT lua_create_module_from_source(?)", histDBSource)
 	if err != nil {
 		panic(err)
 	}
