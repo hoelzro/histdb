@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -180,7 +181,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+k", "up":
 			newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyUp})
 		case "enter":
-			newModel.selection = newModel.table.HighlightedRow().Data["entry"].(string)
+			selectedRow := newModel.table.HighlightedRow().Data
+			rowAttrs := make([]slog.Attr, 0, len(selectedRow))
+			for k, v := range selectedRow {
+				rowAttrs = append(rowAttrs, slog.Attr{Key: k, Value: slog.AnyValue(v)})
+			}
+			slog.LogAttrs(context.TODO(), slog.LevelInfo, "selected row", rowAttrs...)
+			newModel.selection = selectedRow["entry"].(string)
 			return &newModel, tea.Quit
 		}
 
