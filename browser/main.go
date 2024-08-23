@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -160,6 +161,12 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer func() {
+		if err := recover(); err != nil {
+			slog.Error("panic", "error", err, "stack_trace", string(debug.Stack()))
+		}
+	}()
+
 	newModel := *m
 
 	var tableCmd tea.Cmd
