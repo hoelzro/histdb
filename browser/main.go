@@ -171,6 +171,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newModel.table = newModel.table.WithTargetWidth(msg.Width)
 		columnsChanged = true
 	case tea.KeyMsg:
+		slog.Debug("got keypress", "key", msg.String())
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return &newModel, tea.Quit
