@@ -288,12 +288,24 @@ func main() {
 	sessionID := ""
 	logFilename := ""
 	logLevel := "info"
+	logFormat := "text"
 
 	pflag.Uint64Var(&horizonTimestamp, "horizon-timestamp", 0, "The maximum timestamp to consider for results outside of this session")
 	pflag.StringVar(&sessionID, "session-id", strconv.Itoa(os.Getppid()), "The current session ID")
 	pflag.StringVar(&logFilename, "log-filename", "", "The filename to log to")
 	pflag.StringVar(&logLevel, "log-level", "info", "The log level to log at")
+	pflag.StringVar(&logFormat, "log-format", logFormat, "The log format to log in (text, json)")
 	pflag.Parse()
+
+	var buildLogHandler func(io.Writer, *slog.HandlerOptions) slog.Handler = func(w io.Writer, opts *slog.HandlerOptions) slog.Handler {
+		return slog.NewTextHandler(w, opts)
+	}
+
+	if logFormat == "json" {
+		buildLogHandler = func(w io.Writer, opts *slog.HandlerOptions) slog.Handler {
+			return slog.NewJSONHandler(w, opts)
+		}
+	}
 
 	if logFilename != "" {
 		f, err := tea.LogToFile(logFilename, logLevel)
@@ -318,11 +330,17 @@ func main() {
 			panic("Invalid log level")
 		}
 
-		slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{
-			Level: level,
-		})))
+		if logFormat == "json" {
+			slog.SetDefault(slog.New(buildLogHandler(f, &slog.HandlerOptions{
+				Level: level,
+			})))
+		} else {
+			slog.SetDefault(slog.New(buildLogHandler(f, &slog.HandlerOptions{
+				Level: level,
+			})))
+		}
 	} else {
-		slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+		slog.SetDefault(slog.New(buildLogHandler(io.Discard, nil)))
 	}
 
 	err := os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
