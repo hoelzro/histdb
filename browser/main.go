@@ -423,7 +423,11 @@ CREATE TABLE IF NOT EXISTS today_db.history (
 	t := table.New(nil).
 		WithPageSize(20). // only show the top 20 rows
 		Border(table.Border{
-			InnerDivider: " ",
+			// XXX these values feel super-duper magical and I would like to figure
+			//     out if there's a better way, but this'll work for now
+			RightJunction: " ",
+			BottomRight:   " ",
+			InnerDivider:  " ",
 		}).                          // don't show any borders, but space out cells
 		Focused(true).               // needed to display row highlights
 		WithFooterVisibility(false). // don't show the paging widget
