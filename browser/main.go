@@ -350,7 +350,14 @@ func main() {
 		slog.SetDefault(slog.New(buildLogHandler(io.Discard, nil)))
 	}
 
-	err := os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
+	wd, err := os.Getwd()
+	if err != nil {
+		slog.Error("unable to get working directory", "error", err)
+	} else {
+		slog.Debug("current working directory", "directory", wd)
+	}
+
+	err = os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
 	if err != nil {
 		panic(err)
 	}
