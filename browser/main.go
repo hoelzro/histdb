@@ -37,6 +37,8 @@ var (
 	failedCommandStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Bold(true)
 )
 
+const entryLengthLimit = 200
+
 var toggleWorkingDirectoryKey = key.NewBinding(
 	key.WithKeys("f2"),
 	key.WithHelp("f2", "Toggle working directory column"),
@@ -93,6 +95,13 @@ func (m *model) Init() tea.Cmd {
 	)
 }
 
+func stringTruncate(s string, limit int) string {
+	if len(s) > limit {
+		return s[:limit] + "…"
+	}
+	return s
+}
+
 func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []table.Row, error) {
 	slog.Debug("running SQL", "query", sql, "args", fmt.Sprintf("%#v", args))
 	startTime := time.Now()
@@ -147,6 +156,10 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 
 		for i, columnName := range columns {
 			rowData[columnName] = rowValues[i]
+		}
+
+		if entry, isString := rowData["entry"].(string); isString {
+			rowData["entry"] = stringTruncate(entry, entryLengthLimit)
 		}
 		tableRows = append(tableRows, table.NewRow(rowData))
 	}
