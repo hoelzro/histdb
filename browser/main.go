@@ -340,6 +340,15 @@ func main() {
 		if logFormat == "json" {
 			slog.SetDefault(slog.New(buildLogHandler(f, &slog.HandlerOptions{
 				Level: level,
+				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+					if a.Value.Kind() == slog.KindDuration {
+						return slog.Attr{
+							Key:   a.Key,
+							Value: slog.StringValue(a.Value.String()),
+						}
+					}
+					return a
+				},
 			})))
 		} else {
 			slog.SetDefault(slog.New(buildLogHandler(f, &slog.HandlerOptions{
