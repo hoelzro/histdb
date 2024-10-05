@@ -158,6 +158,7 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 			rowData[columnName] = rowValues[i]
 		}
 
+		rowData["raw_entry"] = rowData["entry"]
 		if entry, isString := rowData["entry"].(string); isString {
 			rowData["entry"] = stringTruncate(entry, entryLengthLimit)
 		}
@@ -207,7 +208,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				rowAttrs = append(rowAttrs, slog.Attr{Key: k, Value: slog.AnyValue(v)})
 			}
 			slog.LogAttrs(context.TODO(), slog.LevelInfo, "selected row", rowAttrs...)
-			newModel.selection = selectedRow["entry"].(string)
+			newModel.selection = selectedRow["raw_entry"].(string)
 			return &newModel, tea.Quit
 		}
 
