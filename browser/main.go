@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -380,9 +381,11 @@ func main() {
 		slog.Debug("current working directory", "directory", wd)
 	}
 
-	err = os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
-	if err != nil {
-		panic(err)
+	if _, err := os.Stat("/home/rob/.cache/lua-vtable.so"); errors.Is(err, os.ErrNotExist) {
+		err := os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	sql.Register("sqlite3-histdb-extensions", &sqlite3.SQLiteDriver{
