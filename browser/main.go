@@ -381,8 +381,38 @@ func main() {
 		slog.Debug("current working directory", "directory", wd)
 	}
 
-	if _, err := os.Stat("/home/rob/.cache/lua-vtable.so"); errors.Is(err, os.ErrNotExist) {
-		err := os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
+	exe, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+
+	s, err := os.Stat(exe)
+	if err != nil {
+		panic(err)
+	}
+
+	ourModTime := s.ModTime()
+
+	var extensionModTime time.Time
+
+	s, err = os.Stat("/home/rob/.cache/lua-vtable.so")
+
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		panic(err)
+	} else if err == nil {
+		extensionModTime = s.ModTime()
+	}
+
+	if extensionModTime.Before(ourModTime) {
+		// we need to delete any existing version first, because it could be mapped into the address
+		// space for any currently running version, and writing over the existing file's contents will
+		// mess with that and likely cause a segfault 😬
+		err := os.Remove("/home/rob/.cache/lua-vtable.so")
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			panic(err)
+		}
+
+		err = os.WriteFile("/home/rob/.cache/lua-vtable.so", vtableExtension, 0o700)
 		if err != nil {
 			panic(err)
 		}
