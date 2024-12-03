@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -424,57 +423,13 @@ func main() {
 		},
 	})
 
-	st, err := os.Stat("/home/rob/.cache/histdb.db")
-	if err != nil {
-		panic(err)
-	}
-
-	// if the rollup database is too old, just run histdb to refresh it
-	if time.Now().Format(time.DateOnly) != st.ModTime().Format(time.DateOnly) {
-		err := exec.Command("histdb", ".schema").Run()
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	// XXX probably want to do the whole roll-up and ATTACH thing too?
-	db, err := sql.Open("sqlite3-histdb-extensions", "/home/rob/.cache/histdb.db")
+	db, err := sql.Open("sqlite3-histdb-extensions", "/home/rob/.zsh_history.db")
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
-	databaseDir := "/home/rob/.zsh_history.d"
-	todayDatabaseBasename := time.Now().Format(time.DateOnly) + ".db"
-
-	_, err = db.Exec(fmt.Sprintf("ATTACH DATABASE '%s/%s' AS today_db", databaseDir, todayDatabaseBasename))
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = db.Exec(`
-CREATE TABLE IF NOT EXISTS today_db.history (
-    hostname,
-    session_id, -- shell PID
-    timestamp integer not null,
-    tz_offset integer,
-    history_id, -- $HISTCMD
-    cwd,
-    entry,
-    duration,
-    exit_status
-);
-	`)
-	if err != nil {
-		panic(err)
-	}
-
 	_, err = db.Exec("SELECT lua_create_module_from_source(?)", histDBSource)
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = db.Exec("CREATE TEMPORARY VIEW history AS SELECT rowid, * FROM history_before_today")
 	if err != nil {
 		panic(err)
 	}
