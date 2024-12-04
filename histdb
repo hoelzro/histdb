@@ -45,7 +45,6 @@ local function run_sqlite(db_path, sqliterc, arg)
   local pid = assert(unistd.fork())
   if pid == 0 then
     stdlib.setenv('LD_LIBRARY_PATH', '/home/rob/projects/sqlite-lua-vtable/')
-    stdlib.setenv('HISTDB_SESSION_ID', tostring(shell_pid))
     unistd.execp('sqlite3', sqlite3_args)
   else
     local _, reason, exit_code = sys_wait.wait(pid)
