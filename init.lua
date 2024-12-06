@@ -103,15 +103,16 @@ function mod.best_index(vtab, info)
   -- loses our optimization here anyway), and we can't consume a subset of the ORDER BY columns here.
   --
   -- See the filter method for the implementation.
-  if #info.order_by == 1 and COLUMNS[info.order_by[1].column] == 'timestamp' then
-    index_str = (index_str or '') .. '::'
-
+  if #info.order_by > 0 then
     order_by_consumed = true
+
+    local order_by_pieces = {}
 
     for i = 1, #info.order_by do
       local o = info.order_by[i]
-      index_str = index_str .. string.format('%s-%s', COLUMNS[o.column], o.desc and 'desc' or 'asc')
+      order_by_pieces[#order_by_pieces + 1] = string.format('%s-%s', COLUMNS[o.column], o.desc and 'DESC' or 'ASC')
     end
+    index_str = (index_str or '') .. '::' .. table.concat(order_by_pieces, ':')
   end
 
   return {
@@ -212,13 +213,11 @@ function mod.filter(cursor, index_num, index_name, args)
     end
 
     if ordering then
-      if ordering == 'timestamp-asc' then
-        order_by_clause = 'ORDER BY history.timestamp ASC'
-      elseif ordering == 'timestamp-desc' then
-        order_by_clause = 'ORDER BY history.timestamp DESC'
-      else
-        error 'non-timestamp ordering not yet implemented - see guardrail in best_index method'
+      local order_by_pieces = {}
+      for column, dir in string.gmatch(ordering, '([^:]+)-([^:]+)') do
+        order_by_pieces[#order_by_pieces + 1] = string.format('history.%s %s', column, dir)
       end
+      order_by_clause = 'ORDER BY ' .. table.concat(order_by_pieces, ', ')
     end
   end
 
