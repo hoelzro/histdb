@@ -34,7 +34,7 @@ local function run_sqlite(db_path, sqliterc, arg)
   local sqlite3_args = {
     '-batch',
     '-init', sqliterc,
-    db_path,
+    'file://' .. db_path .. '?immutable=true',
   }
   for i = 1, #arg do
     sqlite3_args[#sqlite3_args + 1] = arg[i]
