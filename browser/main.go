@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,6 +42,11 @@ var (
 
 const entryLengthLimit = 200
 
+var displayHelpKey = key.NewBinding(
+	key.WithKeys("f1"),
+	key.WithHelp("f1", "Display help"),
+)
+
 var toggleWorkingDirectoryKey = key.NewBinding(
 	key.WithKeys("f2"),
 	key.WithHelp("f2", "Toggle working directory column"),
@@ -66,6 +72,23 @@ var toggleLocalCommandsKey = key.NewBinding(
 	key.WithHelp("f6", "Toggle local/global commands"),
 )
 
+type keyMap struct{}
+
+func (m keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		displayHelpKey,
+		toggleWorkingDirectoryKey,
+		toggleTimestampKey,
+		toggleSessionIDKey,
+		toggleFailedCommandsKey,
+		toggleLocalCommandsKey,
+	}
+}
+
+func (m keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{m.ShortHelp()}
+}
+
 var columnWidths = map[string]int{
 	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
 	"session_id": 36, // UUID length
@@ -73,9 +96,12 @@ var columnWidths = map[string]int{
 }
 
 type model struct {
-	db    *sql.DB
-	input textinput.Model
-	table table.Model
+	db       *sql.DB
+	input    textinput.Model
+	table    table.Model
+	showHelp bool
+	help     help.Model
+	keyMap   keyMap
 
 	selection string
 
@@ -193,14 +219,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	columnsChanged := false
 
 	if _, isBlink := msg.(cursor.BlinkMsg); isBlink {
+		newModel.showHelp = m.showHelp
 		newModel.flashMessage = m.flashMessage
 	} else {
+		newModel.showHelp = false
 		newModel.flashMessage = ""
 	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		newModel.table = newModel.table.WithTargetWidth(msg.Width)
+		newModel.help.Width = msg.Width
 		columnsChanged = true
 	case tea.KeyMsg:
 		slog.Debug("got keypress", "key", msg.String())
@@ -227,6 +256,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// XXX merge with previous switch block (put ctrl+c into a keymap)
 		switch {
+		case key.Matches(msg, displayHelpKey):
+			newModel.showHelp = true
 		case key.Matches(msg, toggleWorkingDirectoryKey):
 			newModel.showWorkingDirectory = !newModel.showWorkingDirectory
 			if newModel.showWorkingDirectory {
@@ -338,7 +369,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	return m.input.View() + "\n" + m.table.View() + "\n" + flashMessageStyle.Render(m.flashMessage)
+	if m.showHelp {
+		return m.help.View(m.keyMap)
+	} else {
+		return m.input.View() + "\n" + m.table.View() + "\n" + flashMessageStyle.Render(m.flashMessage)
+	}
 }
 
 func main() {
@@ -505,6 +540,7 @@ func main() {
 		db:    db,
 		input: input,
 		table: t,
+		help:  help.New(),
 
 		showTimestamp:      true,
 		showFailedCommands: true,
@@ -513,6 +549,7 @@ func main() {
 		horizonTimestamp: time.Unix(int64(horizonTimestamp), 0),
 		sessionID:        sessionID,
 	}
+	m.help.ShowAll = true
 	resModel, err := tea.NewProgram(m, tea.WithOutput(os.Stderr)).Run()
 	if err != nil {
 		panic(err)
