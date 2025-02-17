@@ -260,7 +260,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			columnsChanged = true
 		case key.Matches(msg, toggleLocalCommandsKey):
-			if newModel.horizonTimestamp.IsZero() {
+			if newModel.horizonTimestamp.Unix() == 0 {
 				stateChangeMessageLevel = slog.LevelWarn
 				stateChangeMessage = "horizon timestamp not set, not toggling local/global commands display"
 			} else {
@@ -317,7 +317,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			whereClausePredicates = append(whereClausePredicates, "exit_status IN (0, 148)")
 		}
 
-		if !newModel.showGlobalCommands && !newModel.horizonTimestamp.IsZero() {
+		if !newModel.showGlobalCommands && newModel.horizonTimestamp.Unix() != 0 {
 			whereClausePredicates = append(whereClausePredicates, "(raw_timestamp <= ? OR session_id = ?)")
 			queryParams = append(queryParams, newModel.horizonTimestamp.Unix())
 			queryParams = append(queryParams, newModel.sessionID)
