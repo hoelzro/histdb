@@ -549,6 +549,12 @@ func main() {
 		sessionID:        sessionID,
 	}
 	m.help.ShowAll = true
+
+	// there's currently a bug of sorts in bubbletea (at least with urxvt) where calling Update before
+	// help.View() hangs the terminal until more keys are typed due to some color detection or
+	// something - just calling help.View() here works around that bug
+	m.help.View(m.keyMap)
+
 	resModel, err := tea.NewProgram(m, tea.WithOutput(os.Stderr)).Run()
 	if err != nil {
 		panic(err)
