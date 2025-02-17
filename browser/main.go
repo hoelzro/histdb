@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -83,6 +84,8 @@ type model struct {
 
 	showFailedCommands bool
 	showGlobalCommands bool
+
+	flashMessage string
 
 	horizonTimestamp time.Time
 	sessionID        string
@@ -188,6 +191,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	columnsChanged := false
 
+	if _, isBlink := msg.(cursor.BlinkMsg); isBlink {
+		newModel.flashMessage = m.flashMessage
+	} else {
+		newModel.flashMessage = ""
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		newModel.table = newModel.table.WithTargetWidth(msg.Width)
@@ -212,33 +221,40 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return &newModel, tea.Quit
 		}
 
-		// XXX merge these two (put ctrl+c into a keymap)
+		stateChangeMessageLevel := slog.LevelInfo
+		stateChangeMessage := ""
+
+		// XXX merge with previous switch block (put ctrl+c into a keymap)
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
-			slog.Info("toggling working directory display")
+			stateChangeMessage = "toggling working directory display"
 			newModel.showWorkingDirectory = !newModel.showWorkingDirectory
 			columnsChanged = true
 		case key.Matches(msg, toggleTimestampKey):
-			slog.Info("toggling timestamp display")
+			stateChangeMessage = "toggling timestamp display"
 			newModel.showTimestamp = !newModel.showTimestamp
 			columnsChanged = true
 		case key.Matches(msg, toggleSessionIDKey):
-			slog.Info("toggling session ID display")
+			stateChangeMessage = "toggling session ID display"
 			newModel.showSessionID = !newModel.showSessionID
 			columnsChanged = true
 		case key.Matches(msg, toggleFailedCommandsKey):
-			slog.Info("toggling failed commands display")
+			stateChangeMessage = "toggling failed commands display"
 			newModel.showFailedCommands = !newModel.showFailedCommands
 			columnsChanged = true
 		case key.Matches(msg, toggleLocalCommandsKey):
 			if newModel.horizonTimestamp.IsZero() {
-				slog.Warn("horizon timestamp not set, not toggling local/global commands display")
+				stateChangeMessageLevel = slog.LevelWarn
+				stateChangeMessage = "horizon timestamp not set, not toggling local/global commands display"
 			} else {
-				slog.Info("toggling local/global commands display")
+				stateChangeMessage = "toggling local/global commands display"
 				newModel.showGlobalCommands = !newModel.showGlobalCommands
 				columnsChanged = true
 			}
 		}
+
+		newModel.flashMessage = stateChangeMessage
+		slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
 	}
 
 	previousQuery := newModel.input.Value()
@@ -301,7 +317,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	return m.input.View() + "\n" + m.table.View() + "\n"
+	return m.input.View() + "\n" + m.table.View() + "\n" + m.flashMessage
 }
 
 func main() {
