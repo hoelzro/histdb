@@ -305,8 +305,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		newModel.flashMessage = stateChangeMessage
-		slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
+		if stateChangeMessage != "" {
+			newModel.flashMessage = stateChangeMessage
+			slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
+		}
 	}
 
 	previousQuery := newModel.input.Value()
