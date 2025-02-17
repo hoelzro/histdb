@@ -68,7 +68,7 @@ var toggleLocalCommandsKey = key.NewBinding(
 
 var columnWidths = map[string]int{
 	"timestamp":  20, // based on YYYY-MM-DD HH:MM:SS, with a little padding
-	"session_id": 10, // this could be 6 based on PIDs on my machine, but bumped to len("session_id")
+	"session_id": 36, // UUID length
 	"cwd":        70, // based on my history
 }
 
