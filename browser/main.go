@@ -227,28 +227,48 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// XXX merge with previous switch block (put ctrl+c into a keymap)
 		switch {
 		case key.Matches(msg, toggleWorkingDirectoryKey):
-			stateChangeMessage = "toggling working directory display"
 			newModel.showWorkingDirectory = !newModel.showWorkingDirectory
+			if newModel.showWorkingDirectory {
+				stateChangeMessage = "displaying working directory"
+			} else {
+				stateChangeMessage = "hiding working directory"
+			}
 			columnsChanged = true
 		case key.Matches(msg, toggleTimestampKey):
-			stateChangeMessage = "toggling timestamp display"
 			newModel.showTimestamp = !newModel.showTimestamp
+			if newModel.showTimestamp {
+				stateChangeMessage = "displaying timestamp"
+			} else {
+				stateChangeMessage = "hiding timestamp"
+			}
 			columnsChanged = true
 		case key.Matches(msg, toggleSessionIDKey):
-			stateChangeMessage = "toggling session ID display"
 			newModel.showSessionID = !newModel.showSessionID
+			if newModel.showSessionID {
+				stateChangeMessage = "displaying session ID"
+			} else {
+				stateChangeMessage = "hiding session ID"
+			}
 			columnsChanged = true
 		case key.Matches(msg, toggleFailedCommandsKey):
-			stateChangeMessage = "toggling failed commands display"
 			newModel.showFailedCommands = !newModel.showFailedCommands
+			if newModel.showFailedCommands {
+				stateChangeMessage = "displaying failed commands"
+			} else {
+				stateChangeMessage = "hiding failed commands"
+			}
 			columnsChanged = true
 		case key.Matches(msg, toggleLocalCommandsKey):
 			if newModel.horizonTimestamp.IsZero() {
 				stateChangeMessageLevel = slog.LevelWarn
 				stateChangeMessage = "horizon timestamp not set, not toggling local/global commands display"
 			} else {
-				stateChangeMessage = "toggling local/global commands display"
 				newModel.showGlobalCommands = !newModel.showGlobalCommands
+				if newModel.showGlobalCommands {
+					stateChangeMessage = "displaying global commands"
+				} else {
+					stateChangeMessage = "hiding global commands"
+				}
 				columnsChanged = true
 			}
 		}
