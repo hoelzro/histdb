@@ -36,6 +36,7 @@ var (
 	headerStyle        = lipgloss.NewStyle().Bold(true)
 	highlightStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff87d7")).Bold(true)
 	failedCommandStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Bold(true)
+	flashMessageStyle  = lipgloss.NewStyle().Bold(true)
 )
 
 const entryLengthLimit = 200
@@ -337,7 +338,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	return m.input.View() + "\n" + m.table.View() + "\n" + m.flashMessage
+	return m.input.View() + "\n" + m.table.View() + "\n" + flashMessageStyle.Render(m.flashMessage)
 }
 
 func main() {
