@@ -218,10 +218,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	columnsChanged := false
 
-	if _, isBlink := msg.(cursor.BlinkMsg); isBlink {
-		newModel.showHelp = m.showHelp
-		newModel.flashMessage = m.flashMessage
-	} else {
+	if _, isBlink := msg.(cursor.BlinkMsg); !isBlink {
 		newModel.showHelp = false
 		newModel.flashMessage = ""
 	}
