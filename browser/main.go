@@ -229,82 +229,84 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newModel.help.Width = msg.Width
 		columnsChanged = true
 	case tea.KeyMsg:
-		slog.Debug("got keypress", "key", msg.String())
-		switch msg.String() {
-		case "ctrl+c", "esc":
-			return &newModel, tea.Quit
-		case "ctrl+j", "down":
-			newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyDown})
-		case "ctrl+k", "up":
-			newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyUp})
-		case "enter":
-			selectedRow := newModel.table.HighlightedRow().Data
-			rowAttrs := make([]slog.Attr, 0, len(selectedRow))
-			for k, v := range selectedRow {
-				rowAttrs = append(rowAttrs, slog.Attr{Key: k, Value: slog.AnyValue(v)})
+		if !m.showHelp {
+			slog.Debug("got keypress", "key", msg.String())
+			switch msg.String() {
+			case "ctrl+c", "esc":
+				return &newModel, tea.Quit
+			case "ctrl+j", "down":
+				newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyDown})
+			case "ctrl+k", "up":
+				newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyUp})
+			case "enter":
+				selectedRow := newModel.table.HighlightedRow().Data
+				rowAttrs := make([]slog.Attr, 0, len(selectedRow))
+				for k, v := range selectedRow {
+					rowAttrs = append(rowAttrs, slog.Attr{Key: k, Value: slog.AnyValue(v)})
+				}
+				slog.LogAttrs(context.TODO(), slog.LevelInfo, "selected row", rowAttrs...)
+				newModel.selection = selectedRow["raw_entry"].(string)
+				return &newModel, tea.Quit
 			}
-			slog.LogAttrs(context.TODO(), slog.LevelInfo, "selected row", rowAttrs...)
-			newModel.selection = selectedRow["raw_entry"].(string)
-			return &newModel, tea.Quit
-		}
 
-		stateChangeMessageLevel := slog.LevelInfo
-		stateChangeMessage := ""
+			stateChangeMessageLevel := slog.LevelInfo
+			stateChangeMessage := ""
 
-		// XXX merge with previous switch block (put ctrl+c into a keymap)
-		switch {
-		case key.Matches(msg, displayHelpKey):
-			newModel.showHelp = true
-		case key.Matches(msg, toggleWorkingDirectoryKey):
-			newModel.showWorkingDirectory = !newModel.showWorkingDirectory
-			if newModel.showWorkingDirectory {
-				stateChangeMessage = "displaying working directory"
-			} else {
-				stateChangeMessage = "hiding working directory"
-			}
-			columnsChanged = true
-		case key.Matches(msg, toggleTimestampKey):
-			newModel.showTimestamp = !newModel.showTimestamp
-			if newModel.showTimestamp {
-				stateChangeMessage = "displaying timestamp"
-			} else {
-				stateChangeMessage = "hiding timestamp"
-			}
-			columnsChanged = true
-		case key.Matches(msg, toggleSessionIDKey):
-			newModel.showSessionID = !newModel.showSessionID
-			if newModel.showSessionID {
-				stateChangeMessage = "displaying session ID"
-			} else {
-				stateChangeMessage = "hiding session ID"
-			}
-			columnsChanged = true
-		case key.Matches(msg, toggleFailedCommandsKey):
-			newModel.showFailedCommands = !newModel.showFailedCommands
-			if newModel.showFailedCommands {
-				stateChangeMessage = "displaying failed commands"
-			} else {
-				stateChangeMessage = "hiding failed commands"
-			}
-			columnsChanged = true
-		case key.Matches(msg, toggleLocalCommandsKey):
-			if newModel.horizonTimestamp.Unix() == 0 {
-				stateChangeMessageLevel = slog.LevelWarn
-				stateChangeMessage = "horizon timestamp not set, not toggling local/global commands display"
-			} else {
-				newModel.showGlobalCommands = !newModel.showGlobalCommands
-				if newModel.showGlobalCommands {
-					stateChangeMessage = "displaying global commands"
+			// XXX merge with previous switch block (put ctrl+c into a keymap)
+			switch {
+			case key.Matches(msg, displayHelpKey):
+				newModel.showHelp = true
+			case key.Matches(msg, toggleWorkingDirectoryKey):
+				newModel.showWorkingDirectory = !newModel.showWorkingDirectory
+				if newModel.showWorkingDirectory {
+					stateChangeMessage = "displaying working directory"
 				} else {
-					stateChangeMessage = "hiding global commands"
+					stateChangeMessage = "hiding working directory"
 				}
 				columnsChanged = true
+			case key.Matches(msg, toggleTimestampKey):
+				newModel.showTimestamp = !newModel.showTimestamp
+				if newModel.showTimestamp {
+					stateChangeMessage = "displaying timestamp"
+				} else {
+					stateChangeMessage = "hiding timestamp"
+				}
+				columnsChanged = true
+			case key.Matches(msg, toggleSessionIDKey):
+				newModel.showSessionID = !newModel.showSessionID
+				if newModel.showSessionID {
+					stateChangeMessage = "displaying session ID"
+				} else {
+					stateChangeMessage = "hiding session ID"
+				}
+				columnsChanged = true
+			case key.Matches(msg, toggleFailedCommandsKey):
+				newModel.showFailedCommands = !newModel.showFailedCommands
+				if newModel.showFailedCommands {
+					stateChangeMessage = "displaying failed commands"
+				} else {
+					stateChangeMessage = "hiding failed commands"
+				}
+				columnsChanged = true
+			case key.Matches(msg, toggleLocalCommandsKey):
+				if newModel.horizonTimestamp.Unix() == 0 {
+					stateChangeMessageLevel = slog.LevelWarn
+					stateChangeMessage = "horizon timestamp not set, not toggling local/global commands display"
+				} else {
+					newModel.showGlobalCommands = !newModel.showGlobalCommands
+					if newModel.showGlobalCommands {
+						stateChangeMessage = "displaying global commands"
+					} else {
+						stateChangeMessage = "hiding global commands"
+					}
+					columnsChanged = true
+				}
 			}
-		}
 
-		if stateChangeMessage != "" {
-			newModel.flashMessage = stateChangeMessage
-			slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
+			if stateChangeMessage != "" {
+				newModel.flashMessage = stateChangeMessage
+				slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
+			}
 		}
 	}
 
@@ -314,7 +316,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newModel.table, tableCmd = newModel.table.Update(msg)
 	}
 
-	newModel.input, inputCmd = newModel.input.Update(msg)
+	if !m.showHelp {
+		newModel.input, inputCmd = newModel.input.Update(msg)
+	}
 
 	if query := newModel.input.Value(); query != previousQuery || columnsChanged {
 		selectClauseColumns := make([]string, 0)
