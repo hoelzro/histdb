@@ -564,8 +564,10 @@ func main() {
 		panic(err)
 	}
 
-	m = resModel.(*model)
-	if m.selection != "" {
-		fmt.Println(m.selection)
+	if resModel != nil {
+		m = resModel.(*model)
+		if m.selection != "" {
+			fmt.Println(m.selection)
+		}
 	}
 }
