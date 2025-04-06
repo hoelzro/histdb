@@ -208,6 +208,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer func() {
 		if err := recover(); err != nil {
 			slog.Error("panic", "error", err, "stack_trace", string(debug.Stack()))
+			panic(err)
 		}
 	}()
 
