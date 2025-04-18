@@ -243,6 +243,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				selectedRow := newModel.table.HighlightedRow().Data
 				rowAttrs := make([]slog.Attr, 0, len(selectedRow))
 				for k, v := range selectedRow {
+					if k == "entry" {
+						continue
+					} else if k == "raw_entry" {
+						k = "entry"
+					}
+
 					rowAttrs = append(rowAttrs, slog.Attr{Key: k, Value: slog.AnyValue(v)})
 				}
 				slog.LogAttrs(context.TODO(), slog.LevelInfo, "selected row", rowAttrs...)
