@@ -72,6 +72,11 @@ var toggleLocalCommandsKey = key.NewBinding(
 	key.WithHelp("f6", "Toggle local/global commands"),
 )
 
+var markSessionKey = key.NewBinding(
+	key.WithKeys("f12"),
+	key.WithHelp("f12", "Mark this browser session as noteworthy"),
+)
+
 type keyMap struct{}
 
 func (m keyMap) ShortHelp() []key.Binding {
@@ -82,6 +87,7 @@ func (m keyMap) ShortHelp() []key.Binding {
 		toggleSessionIDKey,
 		toggleFailedCommandsKey,
 		toggleLocalCommandsKey,
+		markSessionKey,
 	}
 }
 
@@ -308,6 +314,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					columnsChanged = true
 				}
+			case key.Matches(msg, markSessionKey):
+				slog.Log(context.TODO(), slog.LevelInfo, "this session is noteworthy")
 			}
 
 			if stateChangeMessage != "" {
