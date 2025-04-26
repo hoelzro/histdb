@@ -463,6 +463,8 @@ func main() {
 		slog.SetDefault(slog.New(buildLogHandler(io.Discard, nil)))
 	}
 
+	slog.SetDefault(slog.Default().With("browser_pid", os.Getpid()))
+
 	wd, err := os.Getwd()
 	if err != nil {
 		slog.Error("unable to get working directory", "error", err)
