@@ -185,6 +185,58 @@ WHERE TYPEOF(timestamp) = 'integer'
 ORDER BY session_id, duration, timestamp
     ]],
   },
+
+  -- timestamp MATCH ... test
+  {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE timestamp MATCH 'today'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   DATE(timestamp, 'unixepoch', 'localtime') = DATE('now')
+    ]],
+  },
+
+  -- entry MATCH ... test
+  {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE entry MATCH 'vim'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   entry LIKE '%vim%'
+    ]],
+  },
+
+  -- cwd MATCH ... test
+  {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE cwd MATCH 'rob'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   cwd LIKE '%rob%'
+    ]],
+  },
+
+  -- h MATCH ... test
+  {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE h MATCH 'rob'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   (entry LIKE '%rob%' OR cwd LIKE '%rob%')
+    ]],
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
