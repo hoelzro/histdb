@@ -122,7 +122,12 @@ function mod.close(cursor)
   cursor.stmt:finalize()
 end
 
-local function timestamp_match_expr(expr)
+local function add_param(params, value)
+  params[#params + 1] = value
+  return ':param' .. tostring(#params)
+end
+
+local function timestamp_match_expr(expr, params)
   -- MATCH 'since yesterday'
   -- MATCH 'since last week'
   -- MATCH 'on 2022-03-01'
@@ -131,29 +136,30 @@ local function timestamp_match_expr(expr)
   -- XXX does "yesterday" include an event from 00:15:00 this morning?
   -- searching by a specific time
   local start_time, end_time = assert(match_timestamps.resolve({}, expr))
-  return string.format("timestamp BETWEEN %d AND %d", start_time, end_time)
+  return string.format("timestamp BETWEEN %s AND %s", add_param(params, start_time), add_param(params, end_time))
 end
 
-local function entry_match_expr(expr)
+local function entry_match_expr(expr, params)
   local conditions = {}
   for token in string.gmatch(expr, '(%S+)') do
-    conditions[#conditions+1] = "entry LIKE '%" .. token .. "%'"
+    local placeholder = add_param(params, '%' .. token .. '%')
+    conditions[#conditions+1] = 'entry LIKE ' .. placeholder
   end
   return '(' .. table.concat(conditions, ' AND ') .. ')'
 end
 
-local function cwd_match_expr(expr)
+local function cwd_match_expr(expr, params)
   -- XXX more powerful match language
-  -- XXX string escaping
-  return string.format("cwd LIKE '%%%s%%'", expr)
+  return 'cwd LIKE ' .. add_param(params, '%' .. expr .. '%')
 end
 
 -- `h MATCH 'foo bar'` means that "foo" must be found between (entry, cwd) and "bar" must be found between (entry, cwd) - but they don't necessarily need to be in both
-local function all_match_expr(expr)
+local function all_match_expr(expr, params)
   local conditions = {}
   for token in string.gmatch(expr, '(%S+)') do
+    local placeholder = add_param(params, '%' .. token .. '%')
     -- XXX duplication of entry_match_expr and cwd_match_expr logic :(
-    conditions[#conditions+1] = "(entry LIKE '%" .. token .. "%' OR cwd LIKE '%" .. token .. "%')"
+    conditions[#conditions+1] = string.format('(entry LIKE %s OR cwd LIKE %s)', placeholder, placeholder)
   end
   return '(' .. table.concat(conditions, ' AND ') .. ')'
 end
@@ -175,6 +181,8 @@ function mod.filter(cursor, index_num, index_name, args)
 
   local where_clause = ''
   local order_by_clause = ''
+  local params = {}
+
   if index_name then
     -- index_name is built up within best_index above, and takes the form of ((column .. '-' .. position) .. ':')* .. ('::' order_column .. '-' .. order_direction)?
     local conditions = {}
@@ -186,13 +194,13 @@ function mod.filter(cursor, index_num, index_name, args)
       arg_pos = tonumber(arg_pos)
 
       if column == 'timestamp' then
-        conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos])
+        conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos], params)
       elseif column == 'cwd' then
-        conditions[#conditions + 1] = cwd_match_expr(args[arg_pos])
+        conditions[#conditions + 1] = cwd_match_expr(args[arg_pos], params)
       elseif column == 'entry' then
-        conditions[#conditions + 1] = entry_match_expr(args[arg_pos])
+        conditions[#conditions + 1] = entry_match_expr(args[arg_pos], params)
       elseif column == 'h' then
-        conditions[#conditions + 1] = all_match_expr(args[arg_pos])
+        conditions[#conditions + 1] = all_match_expr(args[arg_pos], params)
       end
     end
 
@@ -243,9 +251,15 @@ function mod.filter(cursor, index_num, index_name, args)
     return nil, cursor.vtab.db:errmsg()
   end
 
-  stmt:bind_names {
+  local bindings = {
     session_id = tostring(session_id),
   }
+
+  for i = 1, #params do
+    bindings['param' .. tostring(i)] = params[i]
+  end
+
+  stmt:bind_names(bindings)
 
   cursor.stmt = stmt
 
