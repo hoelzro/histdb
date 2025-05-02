@@ -388,6 +388,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newModel.table = newModel.table.WithRows(rows)
 	}
 
+	highlightedIndex := newModel.table.GetHighlightedRowIndex()
+	rows := newModel.table.GetVisibleRows()
+	for idx, row := range rows {
+		if idx == highlightedIndex {
+			row.Data["entry"] = row.Data["raw_entry"]
+		} else {
+			if entry, isString := row.Data["entry"].(string); isString {
+				row.Data["entry"] = stringTruncate(entry, entryLengthLimit)
+			}
+		}
+	}
+
 	return &newModel, tea.Batch(tableCmd, inputCmd)
 }
 
