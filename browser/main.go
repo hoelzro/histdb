@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/evertras/bubble-table/table"
@@ -108,6 +109,7 @@ type model struct {
 	showHelp bool
 	help     help.Model
 	keyMap   keyMap
+	viewport viewport.Model
 
 	selection string
 
@@ -128,6 +130,7 @@ func (m *model) Init() tea.Cmd {
 	return tea.Batch(
 		m.input.Focus(),
 		m.table.Init(),
+		m.viewport.Init(),
 	)
 }
 
@@ -222,6 +225,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var tableCmd tea.Cmd
 	var inputCmd tea.Cmd
+	var viewportCmd tea.Cmd
 
 	columnsChanged := false
 
@@ -232,6 +236,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// XXX consider HighPerformanceRendering & YPosition
+		newModel.viewport.Width = msg.Width
+		newModel.viewport.Height = msg.Height - 2 // XXX better calulation based on input/flash
 		newModel.table = newModel.table.WithTargetWidth(msg.Width)
 		newModel.help.Width = msg.Width
 		columnsChanged = true
@@ -334,6 +341,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
 		newModel.table, tableCmd = newModel.table.Update(msg)
+		// XXX do we update table first or viewport first?  Does it matter? Is there anyway of really knowing?
+		newModel.viewport, viewportCmd = newModel.viewport.Update(msg)
 	}
 
 	if !m.showHelp {
@@ -400,14 +409,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return &newModel, tea.Batch(tableCmd, inputCmd)
+	newModel.viewport.SetContent(newModel.table.View())
+
+	// XXX is the batching order here correct?
+	return &newModel, tea.Batch(tableCmd, viewportCmd, inputCmd)
 }
 
 func (m *model) View() string {
 	if m.showHelp {
 		return m.help.View(m.keyMap)
 	} else {
-		return m.input.View() + "\n" + m.table.View() + "\n" + flashMessageStyle.Render(m.flashMessage)
+		return m.input.View() + "\n" + m.viewport.View() + "\n" + flashMessageStyle.Render(m.flashMessage)
 	}
 }
 
@@ -548,7 +560,6 @@ func main() {
 	input := textinput.New()
 
 	t := table.New(nil).
-		WithPageSize(20). // only show the top 20 rows
 		Border(table.Border{
 			// XXX these values feel super-duper magical and I would like to figure
 			//     out if there's a better way, but this'll work for now
@@ -574,10 +585,11 @@ func main() {
 		})
 
 	m := &model{
-		db:    db,
-		input: input,
-		table: t,
-		help:  help.New(),
+		db:       db,
+		input:    input,
+		table:    t,
+		help:     help.New(),
+		viewport: viewport.New(80, 20), // XXX do this lazily?
 
 		showTimestamp:      true,
 		showFailedCommands: true,
