@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -213,6 +214,27 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 	return tableColumns, tableRows, err
 }
 
+func trimTableView(tableView string) string {
+	re := regexp.MustCompile(`^\s*\n*`)
+	return re.ReplaceAllLiteralString(tableView, "")
+}
+
+func (m *model) findHighlightedLines() (int, int) {
+	rows := m.table.GetVisibleRows()
+	if len(rows) == 0 {
+		return 0, 0
+	}
+
+	highlightIndex := m.table.GetHighlightedRowIndex()
+	rowsBeforeHighlight := rows[:highlightIndex]
+	rowsWithHighlight := rows[:highlightIndex+1]
+
+	beforeHighlightLines := strings.Split(trimTableView(m.table.WithHeaderVisibility(false).WithRows(rowsBeforeHighlight).View()), "\n")
+	withHighlightLines := strings.Split(trimTableView(m.table.WithHeaderVisibility(false).WithRows(rowsWithHighlight).View()), "\n")
+
+	return len(beforeHighlightLines) - 1, len(withHighlightLines) - 1
+}
+
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -333,6 +355,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if stateChangeMessage != "" {
 				newModel.flashMessage = stateChangeMessage
 				slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
+			}
+
+			highlightedIndex := newModel.table.GetHighlightedRowIndex()
+			highlightedStart, highlightedEnd := newModel.findHighlightedLines()
+
+			if highlightedStart != 0 || highlightedEnd != 0 {
+				if highlightedEnd > newModel.viewport.YOffset+newModel.viewport.Height {
+					newModel.viewport.ScrollDown(highlightedEnd - (newModel.viewport.YOffset + newModel.viewport.Height))
+				}
+
+				if highlightedStart < newModel.viewport.YOffset {
+					newModel.viewport.ScrollUp(newModel.viewport.YOffset - highlightedStart)
+				}
+
+				slog.Info("highlighted lines", "viewport_offset", newModel.viewport.YOffset, "highlight_index", highlightedIndex, "start", highlightedStart, "end", highlightedEnd)
 			}
 		}
 	}
