@@ -238,7 +238,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// XXX consider HighPerformanceRendering & YPosition
 		newModel.viewport.Width = msg.Width
-		newModel.viewport.Height = msg.Height - 2 // XXX better calulation based on input/flash
+		newModel.viewport.Height = msg.Height - 5 // XXX better calulation based on input/flash/etc
 		newModel.table = newModel.table.WithTargetWidth(msg.Width)
 		newModel.help.Width = msg.Width
 		columnsChanged = true
@@ -409,8 +409,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	newModel.viewport.SetContent(newModel.table.View())
-
 	// XXX is the batching order here correct?
 	return &newModel, tea.Batch(tableCmd, viewportCmd, inputCmd)
 }
@@ -419,7 +417,14 @@ func (m *model) View() string {
 	if m.showHelp {
 		return m.help.View(m.keyMap)
 	} else {
-		return m.input.View() + "\n" + m.viewport.View() + "\n" + flashMessageStyle.Render(m.flashMessage)
+		m.viewport.SetContent(trimTableView(m.table.WithHeaderVisibility(false).View()))
+
+		return strings.Join([]string{
+			m.input.View(),
+			m.table.WithRows([]table.Row{}).View(),
+			m.viewport.View(),
+			flashMessageStyle.Render(m.flashMessage),
+		}, "\n")
 	}
 }
 
