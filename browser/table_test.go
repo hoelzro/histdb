@@ -89,3 +89,61 @@ func TestTableBasic(t *testing.T) {
 
 	// XXX assert that "one" is highlighted?
 }
+
+func TestTableTooSmall(t *testing.T) {
+	testWidth := 300
+	testHeight := 10
+
+	columns := []table.Column{
+		table.NewColumn("id", "id", 5),
+		table.NewFlexColumn("entry", "entry", 1),
+	}
+
+	entries := []string{
+		"one",
+		"two",
+		"three",
+		"four",
+		"five",
+		"six",
+		"seven",
+		"eight",
+		"nine",
+		"ten",
+	}
+	rows := make([]table.Row, len(entries))
+
+	for i, entry := range entries {
+		rows[i] = table.NewRow(map[string]any{
+			"id":    i,
+			"entry": entry,
+		})
+	}
+
+	m := &testModel{
+		t: table.New(columns).
+			WithRows(rows).
+			WithTargetWidth(testWidth).
+			WithTargetHeight(testHeight),
+	}
+
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(testWidth, testHeight))
+	output, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(time.Second*10)))
+	if err != nil {
+		t.Fail()
+	}
+
+	require.Contains(t, string(output), "id")
+	require.Contains(t, string(output), "entry")
+
+	// XXX assert that each is on its own line?
+	for _, entry := range entries[:6] {
+		require.Contains(t, string(output), entry)
+	}
+
+	for _, entry := range entries[7:] {
+		require.NotContains(t, string(output), entry)
+	}
+
+	// XXX assert that "one" is highlighted?
+}
