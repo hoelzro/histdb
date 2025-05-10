@@ -6,7 +6,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/stretchr/testify/require"
 
@@ -38,8 +37,6 @@ func (m *testModel) View() string {
 // XXX handle case where there are no rows
 
 func TestTableBasic(t *testing.T) {
-	headerStyle := lipgloss.NewStyle().Bold(true)
-	defaultStyle := lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
 	testWidth := 300
 	testHeight := 100
 
@@ -71,12 +68,6 @@ func TestTableBasic(t *testing.T) {
 
 	m := &testModel{
 		t: table.New(columns).
-			// styling
-			HeaderStyle(headerStyle).
-			WithBaseStyle(defaultStyle).
-			WithRowStyleFunc(func(in table.RowStyleFuncInput) lipgloss.Style {
-				return defaultStyle
-			}).
 			WithRows(rows).
 			WithTargetWidth(testWidth),
 	}
