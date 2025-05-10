@@ -69,7 +69,8 @@ func TestTableBasic(t *testing.T) {
 	m := &testModel{
 		t: table.New(columns).
 			WithRows(rows).
-			WithTargetWidth(testWidth),
+			WithTargetWidth(testWidth).
+			WithTargetHeight(testHeight),
 	}
 
 	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(testWidth, testHeight))
