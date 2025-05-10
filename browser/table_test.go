@@ -2,13 +2,13 @@ package main_test
 
 import (
 	"io"
-	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/stretchr/testify/require"
 
 	"hoelz.ro/histdb-browser/internal/table"
 )
@@ -37,7 +37,7 @@ func (m *testModel) View() string {
 // XXX handle case where the entry is a single line, but it's a loooooong one
 // XXX handle case where there are no rows
 
-func TestTable(t *testing.T) {
+func TestTableBasic(t *testing.T) {
 	headerStyle := lipgloss.NewStyle().Bold(true)
 	defaultStyle := lipgloss.NewStyle().AlignHorizontal(lipgloss.Left)
 	testWidth := 300
@@ -97,8 +97,13 @@ func TestTable(t *testing.T) {
 		t.Fail()
 	}
 
-	if !strings.Contains(string(output), "five") {
-		t.Log(string(output))
-		t.Fail()
+	require.Contains(t, string(output), "id")
+	require.Contains(t, string(output), "entry")
+
+	// XXX assert that each is on its own line?
+	for _, entry := range entries {
+		require.Contains(t, string(output), entry)
 	}
+
+	// XXX assert that "one" is highlighted?
 }
