@@ -2,6 +2,7 @@ package table
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -29,7 +30,18 @@ func (t *Table) Init() tea.Cmd {
 	)
 }
 
-func (t *Table) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (t *Table) Update(msg tea.Msg) (*Table, tea.Cmd) {
+	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+		// XXX do we update table first or viewport first?  Does it matter? Is there anyway of really knowing?
+		inner, tableCmd := t.inner.Update(msg)
+		v, viewportCmd := t.v.Update(msg)
+
+		return &Table{
+			inner: inner,
+			v:     v,
+		}, tea.Batch(tableCmd, viewportCmd)
+	}
+
 	// XXX pass messages down?
 	return t, nil
 }
@@ -67,6 +79,13 @@ func (t *Table) WithRowStyleFunc(f func(in table.RowStyleFuncInput) lipgloss.Sty
 	}
 }
 
+func (t *Table) WithColumns(columns []table.Column) *Table {
+	return &Table{
+		inner: t.inner.WithColumns(columns),
+		v:     t.v,
+	}
+}
+
 func (t *Table) WithRows(rows []table.Row) *Table {
 	return &Table{
 		inner: t.inner.WithRows(rows),
@@ -86,6 +105,54 @@ func (t *Table) WithTargetHeight(height int) *Table {
 		inner: t.inner,
 		v:     viewport.New(t.v.Width, height-4), // XXX - 2 for the header and padding - can I avoid hard-coding this?
 	}
+}
+
+func findHighlightedLines(t table.Model) (int, int) {
+	rows := t.GetVisibleRows()
+	if len(rows) == 0 {
+		return 0, 0
+	}
+
+	highlightIndex := t.GetHighlightedRowIndex()
+	rowsBeforeHighlight := rows[:highlightIndex]
+	rowsWithHighlight := rows[:highlightIndex+1]
+
+	beforeHighlightLines := strings.Split(trimTableView(t.WithHeaderVisibility(false).WithRows(rowsBeforeHighlight).View()), "\n")
+	withHighlightLines := strings.Split(trimTableView(t.WithHeaderVisibility(false).WithRows(rowsWithHighlight).View()), "\n")
+
+	return len(beforeHighlightLines) - 1, len(withHighlightLines) - 1
+}
+
+func (t *Table) MoveHighlight(amount int) *Table {
+	inner := t.inner.WithHighlightedRow(t.inner.GetHighlightedRowIndex() + amount)
+	highlightedStart, highlightedEnd := findHighlightedLines(inner)
+
+	if highlightedStart != 0 || highlightedEnd != 0 {
+		if highlightedEnd > t.v.YOffset+t.v.Height {
+			t.v.ScrollDown(highlightedEnd - (t.v.YOffset + t.v.Height))
+		}
+
+		if highlightedStart < t.v.YOffset {
+			t.v.ScrollUp(t.v.YOffset - highlightedStart)
+		}
+	}
+
+	return &Table{
+		inner: inner,
+		v:     t.v,
+	}
+}
+
+func (t *Table) HighlightedRow() Row {
+	return t.inner.HighlightedRow()
+}
+
+func (t *Table) GetHighlightedRowIndex() int {
+	return t.inner.GetHighlightedRowIndex()
+}
+
+func (t *Table) GetVisibleRows() []table.Row {
+	return t.inner.GetVisibleRows()
 }
 
 // XXX return a Table rather than a *Table?

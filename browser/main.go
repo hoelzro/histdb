@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -18,12 +17,12 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/evertras/bubble-table/table"
 	"github.com/mattn/go-sqlite3"
 	"github.com/spf13/pflag"
+
+	"hoelz.ro/histdb-browser/internal/table"
 
 	_ "embed"
 )
@@ -106,11 +105,10 @@ var columnWidths = map[string]int{
 type model struct {
 	db       *sql.DB
 	input    textinput.Model
-	table    table.Model
+	table    *table.Table
 	showHelp bool
 	help     help.Model
 	keyMap   keyMap
-	viewport viewport.Model
 
 	selection string
 
@@ -131,7 +129,6 @@ func (m *model) Init() tea.Cmd {
 	return tea.Batch(
 		m.input.Focus(),
 		m.table.Init(),
-		m.viewport.Init(),
 	)
 }
 
@@ -214,27 +211,6 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 	return tableColumns, tableRows, err
 }
 
-func trimTableView(tableView string) string {
-	re := regexp.MustCompile(`^\s*\n*`)
-	return re.ReplaceAllLiteralString(tableView, "")
-}
-
-func (m *model) findHighlightedLines() (int, int) {
-	rows := m.table.GetVisibleRows()
-	if len(rows) == 0 {
-		return 0, 0
-	}
-
-	highlightIndex := m.table.GetHighlightedRowIndex()
-	rowsBeforeHighlight := rows[:highlightIndex]
-	rowsWithHighlight := rows[:highlightIndex+1]
-
-	beforeHighlightLines := strings.Split(trimTableView(m.table.WithHeaderVisibility(false).WithRows(rowsBeforeHighlight).View()), "\n")
-	withHighlightLines := strings.Split(trimTableView(m.table.WithHeaderVisibility(false).WithRows(rowsWithHighlight).View()), "\n")
-
-	return len(beforeHighlightLines) - 1, len(withHighlightLines) - 1
-}
-
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -247,7 +223,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var tableCmd tea.Cmd
 	var inputCmd tea.Cmd
-	var viewportCmd tea.Cmd
 
 	columnsChanged := false
 
@@ -258,10 +233,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// XXX consider HighPerformanceRendering & YPosition
-		newModel.viewport.Width = msg.Width
-		newModel.viewport.Height = msg.Height - 5 // XXX better calulation based on input/flash/etc
-		newModel.table = newModel.table.WithTargetWidth(msg.Width)
+		newModel.table = newModel.table.WithTargetWidth(msg.Width).WithTargetHeight(msg.Height - 2)
 		newModel.help.Width = msg.Width
 		columnsChanged = true
 	case tea.KeyMsg:
@@ -271,9 +243,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c", "esc":
 				return &newModel, tea.Quit
 			case "ctrl+j", "down":
-				newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyDown})
+				newModel.table = newModel.table.MoveHighlight(1)
 			case "ctrl+k", "up":
-				newModel.table, tableCmd = newModel.table.Update(tea.KeyMsg{Type: tea.KeyUp})
+				newModel.table = newModel.table.MoveHighlight(-1)
 			case "enter":
 				selectedRow := newModel.table.HighlightedRow().Data
 				if selectedRow != nil {
@@ -357,30 +329,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				slog.Log(context.TODO(), stateChangeMessageLevel, stateChangeMessage)
 			}
 
-			highlightedIndex := newModel.table.GetHighlightedRowIndex()
-			highlightedStart, highlightedEnd := newModel.findHighlightedLines()
-
-			if highlightedStart != 0 || highlightedEnd != 0 {
-				if highlightedEnd > newModel.viewport.YOffset+newModel.viewport.Height {
-					newModel.viewport.ScrollDown(highlightedEnd - (newModel.viewport.YOffset + newModel.viewport.Height))
-				}
-
-				if highlightedStart < newModel.viewport.YOffset {
-					newModel.viewport.ScrollUp(newModel.viewport.YOffset - highlightedStart)
-				}
-
-				slog.Info("highlighted lines", "viewport_offset", newModel.viewport.YOffset, "highlight_index", highlightedIndex, "start", highlightedStart, "end", highlightedEnd)
-			}
 		}
 	}
 
 	previousQuery := newModel.input.Value()
 
-	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
-		newModel.table, tableCmd = newModel.table.Update(msg)
-		// XXX do we update table first or viewport first?  Does it matter? Is there anyway of really knowing?
-		newModel.viewport, viewportCmd = newModel.viewport.Update(msg)
-	}
+	newModel.table, tableCmd = newModel.table.Update(msg)
 
 	if !m.showHelp {
 		newModel.input, inputCmd = newModel.input.Update(msg)
@@ -447,19 +401,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// XXX is the batching order here correct?
-	return &newModel, tea.Batch(tableCmd, viewportCmd, inputCmd)
+	return &newModel, tea.Batch(tableCmd, inputCmd)
 }
 
 func (m *model) View() string {
 	if m.showHelp {
 		return m.help.View(m.keyMap)
 	} else {
-		m.viewport.SetContent(trimTableView(m.table.WithHeaderVisibility(false).View()))
-
 		return strings.Join([]string{
 			m.input.View(),
-			m.table.WithRows([]table.Row{}).View(),
-			m.viewport.View(),
+			m.table.View(),
 			flashMessageStyle.Render(m.flashMessage),
 		}, "\n")
 	}
@@ -602,16 +553,6 @@ func main() {
 	input := textinput.New()
 
 	t := table.New(nil).
-		Border(table.Border{
-			// XXX these values feel super-duper magical and I would like to figure
-			//     out if there's a better way, but this'll work for now
-			RightJunction: " ",
-			BottomRight:   " ",
-			InnerDivider:  " ",
-		}).                          // don't show any borders, but space out cells
-		Focused(true).               // needed to display row highlights
-		WithFooterVisibility(false). // don't show the paging widget
-		WithMultiline(true).
 		// styling
 		HeaderStyle(headerStyle).
 		WithBaseStyle(defaultStyle).
@@ -627,11 +568,10 @@ func main() {
 		})
 
 	m := &model{
-		db:       db,
-		input:    input,
-		table:    t,
-		help:     help.New(),
-		viewport: viewport.New(80, 20), // XXX do this lazily?
+		db:    db,
+		input: input,
+		table: t,
+		help:  help.New(),
 
 		showTimestamp:      true,
 		showFailedCommands: true,
