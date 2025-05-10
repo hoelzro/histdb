@@ -71,16 +71,6 @@ func TestTableBasic(t *testing.T) {
 
 	m := &testModel{
 		t: table.New(columns).
-			Border(table.Border{
-				// XXX these values feel super-duper magical and I would like to figure
-				//     out if there's a better way, but this'll work for now
-				RightJunction: " ",
-				BottomRight:   " ",
-				InnerDivider:  " ",
-			}).                          // don't show any borders, but space out cells
-			Focused(true).               // needed to display row highlights
-			WithFooterVisibility(false). // don't show the paging widget
-			WithMultiline(true).
 			// styling
 			HeaderStyle(headerStyle).
 			WithBaseStyle(defaultStyle).

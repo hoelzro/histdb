@@ -45,29 +45,6 @@ func (t *Table) View() string {
 	return headerView + "\n" + t.v.View()
 }
 
-// XXX don't even expose this
-func (t *Table) Focused(focused bool) *Table {
-	return &Table{
-		inner: t.inner.Focused(focused),
-		v:     t.v,
-	}
-}
-
-func (t *Table) WithFooterVisibility(visible bool) *Table {
-	return &Table{
-		inner: t.inner.WithFooterVisibility(visible),
-		v:     t.v,
-	}
-}
-
-// XXX don't even expose this
-func (t *Table) WithMultiline(multiline bool) *Table {
-	return &Table{
-		inner: t.inner.WithMultiline(multiline),
-		v:     t.v,
-	}
-}
-
 func (t *Table) HeaderStyle(style lipgloss.Style) *Table {
 	return &Table{
 		inner: t.inner.HeaderStyle(style),
@@ -120,7 +97,10 @@ func New(columns []table.Column) *Table {
 			RightJunction: " ",
 			BottomRight:   " ",
 			InnerDivider:  " ",
-		}) // don't show any borders, but space out cells
+		}).            // don't show any borders, but space out cells
+		Focused(true). // needed to display row highlights
+		WithMultiline(true).
+		WithFooterVisibility(false) // don't show the paging widget
 
 	return &Table{
 		inner: t,
