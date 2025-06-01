@@ -195,7 +195,7 @@ SELECT
   entry
 FROM history
 WHERE TYPEOF(timestamp) = 'integer'
-AND   DATE(timestamp, 'unixepoch', 'localtime') = DATE('now')
+AND   DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime')
     ]],
   },
 
