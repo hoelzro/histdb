@@ -237,6 +237,30 @@ WHERE TYPEOF(timestamp) = 'integer'
 AND   (entry LIKE '%rob%' OR cwd LIKE '%rob%')
     ]],
   },
+
+  -- entry MATCH ' ' test
+  {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE entry MATCH ' '",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+    ]],
+  },
+
+  -- h MATCH ' ' test
+  {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE h MATCH ' '",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+    ]],
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
