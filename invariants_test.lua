@@ -14,12 +14,17 @@ local SENTINULL = setmetatable({}, {__tostring = function() return 'NULL' end})
 local function get_query_results(sql)
   sql = string.gsub(sql, '\n', ' ')
 
-  local pipe <close> = assert(io.popen(string.format('./histdb -json %q', sql)))
-  local json_results = pipe:read 'a'
-  if json_results == '' then
+  local pipe = assert(io.popen(string.format('./histdb -json %q 2>&1', sql)))
+  local output = pipe:read 'a'
+  local ok, _, exit_code = pipe:close()
+
+  assert(ok, output)
+
+  if output == '' then
     return {}
   end
-  local res, _, err = json.decode(json_results, 1, SENTINULL)
+
+  local res, _, err = json.decode(output, 1, SENTINULL)
   assert(res, err)
   return res
 end
