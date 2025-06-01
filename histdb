@@ -60,6 +60,5 @@ local db_path = '/home/rob/.zsh_history.db' -- XXX improve this
 local sqliterc, sqliterc_remover <close> = prepare_sqliterc()
 local ok, err, exit_code = run_sqlite(db_path, sqliterc, arg)
 if not ok then
-  io.stderr:write(err .. '\n')
   os.exit(exit_code)
 end
