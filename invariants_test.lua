@@ -15,7 +15,11 @@ local function get_query_results(sql)
   sql = string.gsub(sql, '\n', ' ')
 
   local pipe <close> = assert(io.popen(string.format('./histdb -json %q', sql)))
-  local res, _, err = json.decode(pipe:read 'a', 1, SENTINULL)
+  local json_results = pipe:read 'a'
+  if json_results == '' then
+    return {}
+  end
+  local res, _, err = json.decode(json_results, 1, SENTINULL)
   assert(res, err)
   return res
 end
@@ -278,6 +282,12 @@ do
   for rowid, count in pairs(counts) do
     assert(count == 1, string.format('rowid %d appeared more than once', rowid))
   end
+end
+
+-- Verify that no results returns {} rather than errors out
+do
+  local results = get_query_results 'SELECT 1 FROM h WHERE 1 = 0'
+  assert(#results == 0)
 end
 
 for i = 1, #invariants do
