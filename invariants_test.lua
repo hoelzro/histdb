@@ -15,7 +15,7 @@ local function get_query_results(sql)
   sql = string.gsub(sql, '\n', ' ')
 
   local pipe <close> = assert(io.popen(string.format('./histdb -json %q', sql)))
-  local res, err = json.decode(pipe:read 'a', 1, SENTINULL)
+  local res, _, err = json.decode(pipe:read 'a', 1, SENTINULL)
   assert(res, err)
   return res
 end
