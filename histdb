@@ -56,7 +56,7 @@ local function run_sqlite(db_path, sqliterc, arg)
   return true
 end
 
-local db_path = '/home/rob/.zsh_history.db' -- XXX improve this
+local db_path = os.getenv 'HISTDB_PATH' or '/home/rob/.zsh_history.db'
 local sqliterc, sqliterc_remover <close> = prepare_sqliterc()
 local ok, err, exit_code = run_sqlite(db_path, sqliterc, arg)
 if not ok then
