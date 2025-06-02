@@ -145,7 +145,10 @@ local function entry_match_expr(expr, params)
     local placeholder = add_param(params, '%' .. token .. '%')
     conditions[#conditions+1] = 'entry LIKE ' .. placeholder
   end
-  return '(' .. table.concat(conditions, ' AND ') .. ')'
+
+  if #conditions > 0 then
+    return '(' .. table.concat(conditions, ' AND ') .. ')'
+  end
 end
 
 local function cwd_match_expr(expr, params)
@@ -161,7 +164,10 @@ local function all_match_expr(expr, params)
     -- XXX duplication of entry_match_expr and cwd_match_expr logic :(
     conditions[#conditions+1] = string.format('(entry LIKE %s OR cwd LIKE %s)', placeholder, placeholder)
   end
-  return '(' .. table.concat(conditions, ' AND ') .. ')'
+
+  if #conditions > 0 then
+    return '(' .. table.concat(conditions, ' AND ') .. ')'
+  end
 end
 
 local function template(tmpl, tmpl_vars)
