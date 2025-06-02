@@ -233,7 +233,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		newModel.table = newModel.table.WithTargetWidth(msg.Width).WithTargetHeight(msg.Height - 2)
+		newModel.table = newModel.table.WithTargetWidth(msg.Width).WithTargetHeight(min(msg.Height-2, 20))
 		newModel.help.Width = msg.Width
 		columnsChanged = true
 	case tea.KeyMsg:
