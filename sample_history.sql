@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS history;
 CREATE TABLE history (
   hostname TEXT,
   session_id TEXT,
