@@ -1,6 +1,5 @@
 #!/usr/bin/env lua5.4
 
-local stdlib   = require 'posix.stdlib'
 local unistd   = require 'posix.unistd'
 local sys_wait = require 'posix.sys.wait'
 
@@ -48,11 +47,8 @@ local function run_sqlite(db_path, sqliterc, arg)
     sqlite3_args[#sqlite3_args + 1] = arg[i]
   end
 
-  local shell_pid = unistd.getppid()
-
   local pid = assert(unistd.fork())
   if pid == 0 then
-    stdlib.setenv('LD_LIBRARY_PATH', '/home/rob/projects/sqlite-lua-vtable/')
     unistd.execp('sqlite3', sqlite3_args)
   else
     local _, reason, exit_code = sys_wait.wait(pid)
