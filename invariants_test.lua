@@ -60,6 +60,14 @@ local function count_tuples(results)
 end
 
 local function assert_result_sets_match_unordered(results_a, results_b)
+  assert(#results_a == #results_b,
+         string.format('result set row count mismatch:\n  a: %d\n  b: %d',
+                       #results_a, #results_b))
+
+  if #results_a == 0 then
+    return
+  end
+
   local columns_a = keys(results_a[1])
   local columns_b = keys(results_b[1])
 
@@ -85,6 +93,14 @@ local function assert_result_sets_match_unordered(results_a, results_b)
 end
 
 local function assert_result_sets_match_ordered(results_a, results_b)
+  assert(#results_a == #results_b,
+         string.format('result set row count mismatch:\n  a: %d\n  b: %d',
+                       #results_a, #results_b))
+
+  if #results_a == 0 then
+    return
+  end
+
   local columns_a = keys(results_a[1])
   local columns_b = keys(results_b[1])
 
@@ -93,9 +109,6 @@ local function assert_result_sets_match_ordered(results_a, results_b)
   for i = 1, #columns_a do
     assert(columns_a[1] == columns_b[1])
   end
-
-  -- the number of rows in each should match
-  assert(#results_a == #results_b, string.format('result set row count mismatch:\n  a: %d\n  b: %d', #results_a, #results_b))
 
   for row = 1, #results_a do
     local row_a = results_a[row]
