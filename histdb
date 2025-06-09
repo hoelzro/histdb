@@ -64,7 +64,7 @@ local function run_sqlite(db_path, sqliterc, arg)
   return true
 end
 
-local db_path = os.getenv 'HISTDB_PATH' or '/home/rob/.zsh_history.db'
+local db_path = os.getenv 'HISTDB_PATH' or (os.getenv 'HOME' .. '/.zsh_history.db')
 local script_dir = arg[0]:match('(.*/)' ) or '.'
 local sqliterc, sqliterc_remover <close> = prepare_sqliterc(script_dir)
 
