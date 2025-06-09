@@ -311,12 +311,19 @@ end
 for i = 1, #invariants do
   local inv = invariants[i]
 
-  local direct_results = get_query_results(inv.direct_sql)
-  local vtab_results = get_query_results(inv.vtab_sql)
+  local ok, err = pcall(function()
+    local direct_results = get_query_results(inv.direct_sql)
+    local vtab_results = get_query_results(inv.vtab_sql)
 
-  if inv.unordered then
-    assert_result_sets_match_unordered(direct_results, vtab_results)
-  else
-    assert_result_sets_match_ordered(direct_results, vtab_results)
+    if inv.unordered then
+      assert_result_sets_match_unordered(direct_results, vtab_results)
+    else
+      assert_result_sets_match_ordered(direct_results, vtab_results)
+    end
+  end)
+
+  if not ok then
+    error(string.format('Invariant #%d failed:\nSQL (vtab): %s\nSQL (direct): %s\n%s',
+                        i, inv.vtab_sql, inv.direct_sql, err), 0)
   end
 end
