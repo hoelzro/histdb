@@ -15,17 +15,25 @@ local function closer(closee, method)
   })
 end
 
-local function prepare_sqliterc()
+local function blob_literal(str)
+  return "X'" .. str:gsub('.', function(c)
+    return string.format('%02X', string.byte(c))
+  end) .. "'"
+end
+
+local function prepare_sqliterc(script_dir)
   local sqliterc = os.tmpname()
 
   local f <close> = assert(io.open(sqliterc, 'w'))
-  f:write([[
-.load lua-vtable
+  f:write(string.format([[
 .output /dev/null
-select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
+select load_extension(%s);
+select lua_create_module_from_file(%s);
 .output
 create virtual table temp.h_debug using h(debug);
-]])
+]],
+    blob_literal(script_dir .. '/lua-vtable.so'),
+    blob_literal(script_dir .. '/histdb.lua')))
 
   return closer(sqliterc, os.remove)
 end
@@ -57,7 +65,9 @@ local function run_sqlite(db_path, sqliterc, arg)
 end
 
 local db_path = os.getenv 'HISTDB_PATH' or '/home/rob/.zsh_history.db'
-local sqliterc, sqliterc_remover <close> = prepare_sqliterc()
+local script_dir = arg[0]:match('(.*/)' ) or '.'
+local sqliterc, sqliterc_remover <close> = prepare_sqliterc(script_dir)
+
 local ok, err, exit_code = run_sqlite(db_path, sqliterc, arg)
 if not ok then
   os.exit(exit_code)
