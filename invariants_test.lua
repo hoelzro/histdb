@@ -125,9 +125,14 @@ local function assert_result_sets_match_ordered(results_a, results_b)
   end
 end
 
+local function test(t)
+  t.line = debug.getinfo(2, 'l').currentline
+  return t
+end
+
 local invariants = {
   -- all rows with a valid timestamp should be present
-  {
+  test { 
     direct_sql = [[SELECT DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp, entry FROM history WHERE TYPEOF(timestamp) = 'integer']],
     vtab_sql   = 'SELECT timestamp, entry FROM h',
 
@@ -135,13 +140,13 @@ local invariants = {
   },
 
   -- ordering by timestamp should be the same
-  {
+  test { 
     direct_sql = [[SELECT DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp, entry FROM history WHERE TYPEOF(timestamp) = 'integer' ORDER BY timestamp]],
     vtab_sql   = 'SELECT timestamp, entry FROM h ORDER BY timestamp',
   },
 
   -- ordering by COLUMN should be the same
-  {
+  test { 
     vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id',
     direct_sql = [[
 SELECT
@@ -154,7 +159,7 @@ ORDER BY session_id
   },
 
   -- ordering by (timestamp, COLUMN) should be the same
-  {
+  test { 
     vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY timestamp, session_id',
     direct_sql = [[
 SELECT
@@ -167,7 +172,7 @@ ORDER BY timestamp, session_id
   },
 
   -- ordering by (COLUMN, timestamp) should be the same
-  {
+  test { 
     vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id, timestamp',
     direct_sql = [[
 SELECT
@@ -181,7 +186,7 @@ ORDER BY session_id, timestamp
   },
 
   -- ordering by (COLUMN, timestamp, COLUMN) should be the same
-  {
+  test { 
     vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id, timestamp, duration',
     direct_sql = [[
 SELECT
@@ -195,7 +200,7 @@ ORDER BY session_id, timestamp, duration
   },
 
   -- ordering by (COLUMN, COLUMN, timestamp) should be the same
-  {
+  test { 
     vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY session_id, duration, timestamp',
     direct_sql = [[
 SELECT
@@ -209,7 +214,7 @@ ORDER BY session_id, duration, timestamp
   },
 
   -- timestamp MATCH ... test
-  {
+  test { 
     vtab_sql = "SELECT timestamp, entry FROM h WHERE timestamp MATCH 'today'",
     direct_sql = [[
 SELECT
@@ -222,7 +227,7 @@ AND   DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime')
   },
 
   -- entry MATCH ... test
-  {
+  test { 
     vtab_sql = "SELECT timestamp, entry FROM h WHERE entry MATCH 'vim'",
     direct_sql = [[
 SELECT
@@ -235,7 +240,7 @@ AND   entry LIKE '%vim%'
   },
 
   -- cwd MATCH ... test
-  {
+  test { 
     vtab_sql = "SELECT timestamp, entry FROM h WHERE cwd MATCH 'rob'",
     direct_sql = [[
 SELECT
@@ -248,7 +253,7 @@ AND   cwd LIKE '%rob%'
   },
 
   -- h MATCH ... test
-  {
+  test { 
     vtab_sql = "SELECT timestamp, entry FROM h WHERE h MATCH 'rob'",
     direct_sql = [[
 SELECT
@@ -261,7 +266,7 @@ AND   (entry LIKE '%rob%' OR cwd LIKE '%rob%')
   },
 
   -- entry MATCH ' ' test
-  {
+  test { 
     vtab_sql = "SELECT timestamp, entry FROM h WHERE entry MATCH ' '",
     direct_sql = [[
 SELECT
@@ -273,7 +278,7 @@ WHERE TYPEOF(timestamp) = 'integer'
   },
 
   -- h MATCH ' ' test
-  {
+  test { 
     vtab_sql = "SELECT timestamp, entry FROM h WHERE h MATCH ' '",
     direct_sql = [[
 SELECT
@@ -311,12 +316,19 @@ end
 for i = 1, #invariants do
   local inv = invariants[i]
 
-  local direct_results = get_query_results(inv.direct_sql)
-  local vtab_results = get_query_results(inv.vtab_sql)
+  local ok, err = pcall(function()
+    local direct_results = get_query_results(inv.direct_sql)
+    local vtab_results = get_query_results(inv.vtab_sql)
 
-  if inv.unordered then
-    assert_result_sets_match_unordered(direct_results, vtab_results)
-  else
-    assert_result_sets_match_ordered(direct_results, vtab_results)
+    if inv.unordered then
+      assert_result_sets_match_unordered(direct_results, vtab_results)
+    else
+      assert_result_sets_match_ordered(direct_results, vtab_results)
+    end
+  end)
+
+  if not ok then
+    error(string.format('Invariant at line %d (index #%d) failed:\nSQL (vtab): %s\nSQL (direct): %s\n%s',
+                        inv.line, i, inv.vtab_sql, inv.direct_sql, err), 0)
   end
 end
