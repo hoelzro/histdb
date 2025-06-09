@@ -1,4 +1,4 @@
-#!/usr/bin/env lua
+#!/usr/bin/env lua5.4
 
 local stdlib   = require 'posix.stdlib'
 local unistd   = require 'posix.unistd'
