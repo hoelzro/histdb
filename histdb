@@ -1,4 +1,4 @@
-#!/usr/bin/env lua
+#!/usr/bin/env lua5.4
 
 local stdlib   = require 'posix.stdlib'
 local unistd   = require 'posix.unistd'
@@ -15,17 +15,25 @@ local function closer(closee, method)
   })
 end
 
-local function prepare_sqliterc()
+local function blob_literal(str)
+  return "X'" .. str:gsub('.', function(c)
+    return string.format('%02X', string.byte(c))
+  end) .. "'"
+end
+
+local function prepare_sqliterc(script_dir)
   local sqliterc = os.tmpname()
 
   local f <close> = assert(io.open(sqliterc, 'w'))
-  f:write([[
-.load lua-vtable
+  f:write(string.format([[
 .output /dev/null
-select lua_create_module_from_file('/home/rob/projects/histdb-redux/histdb.lua');
+select load_extension(%s);
+select lua_create_module_from_file(%s);
 .output
 create virtual table temp.h_debug using h(debug);
-]])
+]],
+    blob_literal(script_dir .. '/lua-vtable.so'),
+    blob_literal(script_dir .. '/histdb.lua')))
 
   return closer(sqliterc, os.remove)
 end
@@ -40,11 +48,8 @@ local function run_sqlite(db_path, sqliterc, arg)
     sqlite3_args[#sqlite3_args + 1] = arg[i]
   end
 
-  local shell_pid = unistd.getppid()
-
   local pid = assert(unistd.fork())
   if pid == 0 then
-    stdlib.setenv('LD_LIBRARY_PATH', '/home/rob/projects/sqlite-lua-vtable/')
     unistd.execp('sqlite3', sqlite3_args)
   else
     local _, reason, exit_code = sys_wait.wait(pid)
@@ -56,8 +61,10 @@ local function run_sqlite(db_path, sqliterc, arg)
   return true
 end
 
-local db_path = '/home/rob/.zsh_history.db' -- XXX improve this
-local sqliterc, sqliterc_remover <close> = prepare_sqliterc()
+local script_dir = arg[0]:match('(.*/)' ) or '.'
+
+local db_path = os.getenv 'HISTDB_PATH' or (os.getenv 'HOME' .. '/.zsh_history.db')
+local sqliterc, sqliterc_remover <close> = prepare_sqliterc(script_dir)
 local ok, err, exit_code = run_sqlite(db_path, sqliterc, arg)
 if not ok then
   io.stderr:write(err .. '\n')
