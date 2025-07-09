@@ -322,6 +322,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case key.Matches(msg, markSessionKey):
 				slog.Log(context.TODO(), slog.LevelInfo, "this session is noteworthy")
+				stateChangeMessage = "Session marked as noteworthy"
+				stateChangeMessageLevel = slog.LevelInfo
 			}
 
 			if stateChangeMessage != "" {
