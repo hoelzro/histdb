@@ -67,5 +67,5 @@ local sqliterc, sqliterc_remover <close> = prepare_sqliterc(script_dir)
 
 local ok, err, exit_code = run_sqlite(db_path, sqliterc, arg)
 if not ok then
-  os.exit(exit_code)
+  os.exit(exit_code, true)
 end
