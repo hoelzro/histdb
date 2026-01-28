@@ -110,7 +110,7 @@ type model struct {
 	help     help.Model
 	keyMap   keyMap
 
-	selection string
+	selection table.RowData
 
 	showTimestamp        bool
 	showWorkingDirectory bool
@@ -157,7 +157,7 @@ func (m *model) getRowsFromQuery(sql string, args ...any) ([]table.Column, []tab
 	tableColumns := make([]table.Column, 0, len(columns))
 
 	for _, columnName := range columns {
-		if columnName == "exit_status" {
+		if columnName == "rowid" || columnName == "exit_status" {
 			continue
 		}
 
@@ -260,10 +260,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						rowAttrs = append(rowAttrs, slog.Attr{Key: k, Value: slog.AnyValue(v)})
 					}
 					slog.LogAttrs(context.TODO(), slog.LevelInfo, "selected row", rowAttrs...)
-					newModel.selection = selectedRow["raw_entry"].(string)
+					newModel.selection = selectedRow
 				} else {
 					slog.Info("no row selected")
-					newModel.selection = ""
+					newModel.selection = nil
 				}
 				return &newModel, tea.Quit
 			}
@@ -381,7 +381,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		whereClause := strings.Join(whereClausePredicates, " AND ")
 
-		columns, rows, err := newModel.getRowsFromQuery(fmt.Sprintf("SELECT %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE %s ORDER BY timestamp DESC LIMIT 100", selectClause, whereClause), queryParams...)
+		columns, rows, err := newModel.getRowsFromQuery(fmt.Sprintf("SELECT rowid, %s, COALESCE(exit_status, '') AS exit_status FROM h WHERE %s ORDER BY timestamp DESC LIMIT 100", selectClause, whereClause), queryParams...)
 		if err != nil {
 			panic(err)
 		}
@@ -424,12 +424,14 @@ func main() {
 	logFilename := ""
 	logLevel := "info"
 	logFormat := "text"
+	printOID := false
 
 	pflag.Uint64Var(&horizonTimestamp, "horizon-timestamp", 0, "The maximum timestamp to consider for results outside of this session")
 	pflag.StringVar(&sessionID, "session-id", strconv.Itoa(os.Getppid()), "The current session ID")
 	pflag.StringVar(&logFilename, "log-filename", "", "The filename to log to")
 	pflag.StringVar(&logLevel, "log-level", "info", "The log level to log at")
 	pflag.StringVar(&logFormat, "log-format", logFormat, "The log format to log in (text, json)")
+	pflag.BoolVar(&printOID, "print-oid", printOID, "Output the OID of the selected row, rather than the entry")
 	pflag.Parse()
 
 	var buildLogHandler func(io.Writer, *slog.HandlerOptions) slog.Handler = func(w io.Writer, opts *slog.HandlerOptions) slog.Handler {
@@ -596,8 +598,12 @@ func main() {
 
 	if resModel != nil {
 		m = resModel.(*model)
-		if m.selection != "" {
-			fmt.Println(m.selection)
+		if m.selection != nil {
+			if printOID {
+				fmt.Println(m.selection["rowid"])
+			} else {
+				fmt.Println(m.selection["raw_entry"])
+			}
 		}
 	}
 }

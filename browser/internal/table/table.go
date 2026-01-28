@@ -15,6 +15,7 @@ type (
 	RowStyleFuncInput = table.RowStyleFuncInput
 	Column            = table.Column
 	Row               = table.Row
+	RowData           = table.RowData
 )
 
 type Table struct {
