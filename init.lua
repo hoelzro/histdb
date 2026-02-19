@@ -110,6 +110,12 @@ function mod.best_index(vtab, info)
       cu.argv_index = next_argv
       next_argv = next_argv + 1
       cu.omit = true
+    elseif c.op == 'limit' or c.op == 'offset' then
+      index_str_pieces[#index_str_pieces + 1] = string.format('%s:%d', c.op, next_argv)
+
+      cu.argv_index = next_argv
+      next_argv = next_argv + 1
+      cu.omit = true
     end
 
     constraint_usage[i] = cu
@@ -211,6 +217,8 @@ function mod.filter(cursor, index_num, index_name, args)
 
   local where_clause = ''
   local order_by_clause = ''
+  local limit_clause = ''
+  local offset_clause = ''
   local params = {}
 
   if index_name then
@@ -253,6 +261,14 @@ function mod.filter(cursor, index_num, index_name, args)
         local column, dir = string.match(hint_args, '(.+):(.+)')
 
         order_by_pieces[#order_by_pieces + 1] = string.format('history.%s %s', column, dir)
+      elseif hint_type == 'limit' then
+        local arg_pos = tonumber(hint_args)
+
+        limit_clause = 'LIMIT ' .. args[arg_pos]
+      elseif hint_type == 'offset' then
+        local arg_pos = tonumber(hint_args)
+
+        offset_clause = 'OFFSET ' .. args[arg_pos]
       else
         error(string.format('unrecognized hint type %q', hint_type))
       end
@@ -286,9 +302,13 @@ function mod.filter(cursor, index_num, index_name, args)
     WHERE session_id <> :session_id AND timestamp IS NOT NULL AND TYPEOF(timestamp) = 'integer'
     «where_clause»
     «order_by_clause»
+    «limit_clause»
+    «offset_clause»
   ]], {
     where_clause    = where_clause,
     order_by_clause = order_by_clause,
+    limit_clause    = limit_clause,
+    offset_clause   = offset_clause,
   })
 
   if cursor.debug then
