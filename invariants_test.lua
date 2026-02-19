@@ -415,6 +415,34 @@ AND   duration IS NOT NULL
     ]],
     unordered = true,
   },
+
+  -- ORDER BY timestamp LIMIT 3
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY timestamp LIMIT 3',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+ORDER BY timestamp
+LIMIT 3
+    ]],
+  },
+
+  -- ORDER BY timestamp LIMIT 2 OFFSET 1
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h ORDER BY timestamp LIMIT 2 OFFSET 1',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+ORDER BY timestamp
+LIMIT 2 OFFSET 1
+    ]],
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
