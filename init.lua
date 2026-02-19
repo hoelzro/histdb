@@ -60,12 +60,16 @@ end
 mod.create = mod.connect
 
 local COMPARISON_OPERATORS = {
-  ['=']  = true,
-  ['<>'] = true,
-  ['>']  = true,
-  ['>='] = true,
-  ['<']  = true,
-  ['<='] = true,
+  ['=']           = true,
+  ['<>']          = true,
+  ['>']           = true,
+  ['>=']          = true,
+  ['<']           = true,
+  ['<=']          = true,
+  ['is']          = true,
+  ['is not']      = true,
+  ['is null']     = true,
+  ['is not null'] = true,
 }
 
 -- this builds up a serialized list of hints to be used by the filter method below - more details there
@@ -94,6 +98,10 @@ function mod.best_index(vtab, info)
 
       cu.argv_index = next_argv
       next_argv = next_argv + 1
+      cu.omit = true
+    elseif c.op == 'is null' or c.op == 'is not null' then
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], 0)
+
       cu.omit = true
     elseif COMPARISON_OPERATORS[c.op] then
       -- XXX make sure c.column is a comparable column
@@ -226,16 +234,20 @@ function mod.filter(cursor, index_num, index_name, args)
           elseif column == 'h' then
             where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
           end
-        else
-          assert(COMPARISON_OPERATORS[constraint_op])
-
+        elseif COMPARISON_OPERATORS[constraint_op] then
           if column == 'timestamp' then
             column = "DATETIME(timestamp, 'unixepoch', 'localtime')"
           elseif column == 'raw_timestamp' then
             column = 'timestamp'
           end
 
-          where_pieces[#where_pieces + 1] = string.format('%s %s %s', column, constraint_op, add_param(params, args[arg_pos]))
+          if arg_pos ~= 0 then
+            where_pieces[#where_pieces + 1] = string.format('%s %s %s', column, constraint_op, add_param(params, args[arg_pos]))
+          else
+            where_pieces[#where_pieces + 1] = string.format('%s %s', column, constraint_op)
+          end
+        else
+          error(string.format('constraint op %q NYI (hint = %q)', constraint_op, hint))
         end
       elseif hint_type == 'order' then
         local column, dir = string.match(hint_args, '(.+):(.+)')
