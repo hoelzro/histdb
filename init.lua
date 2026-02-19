@@ -59,6 +59,7 @@ end
 
 mod.create = mod.connect
 
+-- this builds up a serialized list of hints to be used by the filter method below - more details there
 function mod.best_index(vtab, info)
   if vtab.debug then
     local pretty = require 'pretty'
@@ -66,7 +67,7 @@ function mod.best_index(vtab, info)
   end
 
   local constraint_usage = {}
-  local index_str
+  local index_str_pieces = {}
   local next_argv = 1
   local order_by_consumed
 
@@ -76,8 +77,7 @@ function mod.best_index(vtab, info)
 
     if c.usable and c.op == 'match' then
       -- XXX make sure c.column is a matchable column
-      index_str = index_str or {}
-      index_str[#index_str + 1] = string.format('%s-%d', COLUMNS[c.column], next_argv)
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], next_argv)
 
       cu.argv_index = next_argv
       next_argv = next_argv + 1
@@ -87,25 +87,19 @@ function mod.best_index(vtab, info)
     constraint_usage[i] = cu
   end
 
-  if index_str then
-    index_str = table.concat(index_str, ':')
-  end
 
   if #info.order_by > 0 then
     order_by_consumed = true
 
-    local order_by_pieces = {}
-
     for i = 1, #info.order_by do
       local o = info.order_by[i]
-      order_by_pieces[#order_by_pieces + 1] = string.format('%s-%s', COLUMNS[o.column], o.desc and 'DESC' or 'ASC')
+      index_str_pieces[#index_str_pieces + 1] = string.format('order:%s:%s', COLUMNS[o.column], o.desc and 'DESC' or 'ASC')
     end
-    index_str = (index_str or '') .. '::' .. table.concat(order_by_pieces, ':')
   end
 
   return {
     constraint_usage = constraint_usage,
-    index_str = index_str,
+    index_str = #index_str_pieces > 0 and table.concat(index_str_pieces, ';') or nil,
     order_by_consumed = order_by_consumed,
   }
 end
@@ -190,23 +184,33 @@ function mod.filter(cursor, index_num, index_name, args)
   local params = {}
 
   if index_name then
-    -- index_name is built up within best_index above, and takes the form of ((column .. '-' .. position) .. ':')* .. ('::' order_column .. '-' .. order_direction)?
+    --  index_name is built up within best_index above, and is composed of semicolon-separated hints.  Each hint is composed of a hint type and that hint's arguments, separated by colons
     local conditions = {}
+    local order_by_pieces = {}
 
-    local constraints, ordering = string.match(index_name, '(.*)::(.*)')
-    constraints = constraints or index_name
+    for hint in string.gmatch(index_name, '[^;]+') do
+      local hint_type, hint_args = string.match(hint, '(%a+):(.*)')
+      if hint_type == 'constraint' then
+        local constraint_op, column, arg_pos = string.match(hint_args, '(.+):(.+):(%d+)')
+        arg_pos = tonumber(arg_pos)
 
-    for column, arg_pos in string.gmatch(constraints, '([^:]+)-(%d+)') do
-      arg_pos = tonumber(arg_pos)
+        assert(constraint_op == 'match')
 
-      if column == 'timestamp' then
-        conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos], params)
-      elseif column == 'cwd' then
-        conditions[#conditions + 1] = cwd_match_expr(args[arg_pos], params)
-      elseif column == 'entry' then
-        conditions[#conditions + 1] = entry_match_expr(args[arg_pos], params)
-      elseif column == 'h' then
-        conditions[#conditions + 1] = all_match_expr(args[arg_pos], params)
+        if column == 'timestamp' then
+          conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos], params)
+        elseif column == 'cwd' then
+          conditions[#conditions + 1] = cwd_match_expr(args[arg_pos], params)
+        elseif column == 'entry' then
+          conditions[#conditions + 1] = entry_match_expr(args[arg_pos], params)
+        elseif column == 'h' then
+          conditions[#conditions + 1] = all_match_expr(args[arg_pos], params)
+        end
+      elseif hint_type == 'order' then
+        local column, dir = string.match(hint_args, '(.+):(.+)')
+
+        order_by_pieces[#order_by_pieces + 1] = string.format('history.%s %s', column, dir)
+      else
+        error(string.format('unrecognized hint type %q', hint_type))
       end
     end
 
@@ -214,11 +218,7 @@ function mod.filter(cursor, index_num, index_name, args)
       where_clause = 'AND ' .. table.concat(conditions, ' AND ')
     end
 
-    if ordering then
-      local order_by_pieces = {}
-      for column, dir in string.gmatch(ordering, '([^:]+)-([^:]+)') do
-        order_by_pieces[#order_by_pieces + 1] = string.format('history.%s %s', column, dir)
-      end
+    if #order_by_pieces > 0 then
       order_by_clause = 'ORDER BY ' .. table.concat(order_by_pieces, ', ')
     end
   end
