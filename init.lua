@@ -59,6 +59,15 @@ end
 
 mod.create = mod.connect
 
+local COMPARISON_OPERATORS = {
+  ['=']  = true,
+  ['<>'] = true,
+  ['>']  = true,
+  ['>='] = true,
+  ['<']  = true,
+  ['<='] = true,
+}
+
 -- this builds up a serialized list of hints to be used by the filter method below - more details there
 function mod.best_index(vtab, info)
   if vtab.debug then
@@ -75,8 +84,19 @@ function mod.best_index(vtab, info)
     local c = info.constraints[i]
     local cu = {}
 
-    if c.usable and c.op == 'match' then
+    if not c.usable then
+      goto continue
+    end
+
+    if c.op == 'match' then
       -- XXX make sure c.column is a matchable column
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], next_argv)
+
+      cu.argv_index = next_argv
+      next_argv = next_argv + 1
+      cu.omit = true
+    elseif COMPARISON_OPERATORS[c.op] then
+      -- XXX make sure c.column is a comparable column
       index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], next_argv)
 
       cu.argv_index = next_argv
@@ -85,6 +105,8 @@ function mod.best_index(vtab, info)
     end
 
     constraint_usage[i] = cu
+
+    ::continue::
   end
 
 
@@ -194,16 +216,26 @@ function mod.filter(cursor, index_num, index_name, args)
         local constraint_op, column, arg_pos = string.match(hint_args, '(.+):(.+):(%d+)')
         arg_pos = tonumber(arg_pos)
 
-        assert(constraint_op == 'match')
+        if constraint_op == 'match' then
+          if column == 'timestamp' then
+            where_pieces[#where_pieces + 1] = timestamp_match_expr(args[arg_pos], params)
+          elseif column == 'cwd' then
+            where_pieces[#where_pieces + 1] = cwd_match_expr(args[arg_pos], params)
+          elseif column == 'entry' then
+            where_pieces[#where_pieces + 1] = entry_match_expr(args[arg_pos], params)
+          elseif column == 'h' then
+            where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
+          end
+        else
+          assert(COMPARISON_OPERATORS[constraint_op])
 
-        if column == 'timestamp' then
-          where_pieces[#where_pieces + 1] = timestamp_match_expr(args[arg_pos], params)
-        elseif column == 'cwd' then
-          where_pieces[#where_pieces + 1] = cwd_match_expr(args[arg_pos], params)
-        elseif column == 'entry' then
-          where_pieces[#where_pieces + 1] = entry_match_expr(args[arg_pos], params)
-        elseif column == 'h' then
-          where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
+          if column == 'timestamp' then
+            column = "DATETIME(timestamp, 'unixepoch', 'localtime')"
+          elseif column == 'raw_timestamp' then
+            column = 'timestamp'
+          end
+
+          where_pieces[#where_pieces + 1] = string.format('%s %s %s', column, constraint_op, add_param(params, args[arg_pos]))
         end
       elseif hint_type == 'order' then
         local column, dir = string.match(hint_args, '(.+):(.+)')
