@@ -70,6 +70,7 @@ local COMPARISON_OPERATORS = {
   ['is not']      = true,
   ['is null']     = true,
   ['is not null'] = true,
+  ['like']        = true,
 }
 
 -- this builds up a serialized list of hints to be used by the filter method below - more details there
