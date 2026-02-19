@@ -469,6 +469,19 @@ WHERE TYPEOF(timestamp) = 'integer'
 AND   cwd LIKE '%rob%'
     ]],
   },
+
+  -- h LIKE ... test
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE h LIKE '%rob%'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   (entry LIKE '%rob%' OR cwd LIKE '%rob%')
+    ]],
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
