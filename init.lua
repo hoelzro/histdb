@@ -185,7 +185,7 @@ function mod.filter(cursor, index_num, index_name, args)
 
   if index_name then
     --  index_name is built up within best_index above, and is composed of semicolon-separated hints.  Each hint is composed of a hint type and that hint's arguments, separated by colons
-    local conditions = {}
+    local where_pieces = {}
     local order_by_pieces = {}
 
     for hint in string.gmatch(index_name, '[^;]+') do
@@ -197,13 +197,13 @@ function mod.filter(cursor, index_num, index_name, args)
         assert(constraint_op == 'match')
 
         if column == 'timestamp' then
-          conditions[#conditions + 1] = timestamp_match_expr(args[arg_pos], params)
+          where_pieces[#where_pieces + 1] = timestamp_match_expr(args[arg_pos], params)
         elseif column == 'cwd' then
-          conditions[#conditions + 1] = cwd_match_expr(args[arg_pos], params)
+          where_pieces[#where_pieces + 1] = cwd_match_expr(args[arg_pos], params)
         elseif column == 'entry' then
-          conditions[#conditions + 1] = entry_match_expr(args[arg_pos], params)
+          where_pieces[#where_pieces + 1] = entry_match_expr(args[arg_pos], params)
         elseif column == 'h' then
-          conditions[#conditions + 1] = all_match_expr(args[arg_pos], params)
+          where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
         end
       elseif hint_type == 'order' then
         local column, dir = string.match(hint_args, '(.+):(.+)')
@@ -214,8 +214,8 @@ function mod.filter(cursor, index_num, index_name, args)
       end
     end
 
-    if #conditions > 0 then
-      where_clause = 'AND ' .. table.concat(conditions, ' AND ')
+    if #where_pieces > 0 then
+      where_clause = 'AND ' .. table.concat(where_pieces, ' AND ')
     end
 
     if #order_by_pieces > 0 then
