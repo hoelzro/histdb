@@ -288,6 +288,77 @@ FROM history
 WHERE TYPEOF(timestamp) = 'integer'
     ]],
   },
+
+  -- exit_status = 0 (integer equality)
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE exit_status = 0',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   exit_status = 0
+    ]],
+    unordered = true,
+  },
+
+  -- duration > 5 (range comparison)
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE duration > 5',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   duration > 5
+    ]],
+    unordered = true,
+  },
+
+  -- hostname = 'host1' (string equality)
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE hostname = 'host1'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   hostname = 'host1'
+    ]],
+    unordered = true,
+  },
+
+  -- exit_status <> 0 (not-equal)
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE exit_status <> 0',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   exit_status <> 0
+    ]],
+    unordered = true,
+  },
+
+  -- combined: exit_status = 0 with entry MATCH 'vim'
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE exit_status = 0 AND entry MATCH 'vim'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   exit_status = 0
+AND   entry LIKE '%vim%'
+    ]],
+    unordered = true,
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
