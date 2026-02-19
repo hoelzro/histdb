@@ -443,6 +443,32 @@ ORDER BY timestamp
 LIMIT 2 OFFSET 1
     ]],
   },
+
+  -- entry LIKE ... test
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE entry LIKE '%vim%'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   entry LIKE '%vim%'
+    ]],
+  },
+
+  -- cwd MATCH ... test
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE cwd LIKE '%rob%'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   cwd LIKE '%rob%'
+    ]],
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
