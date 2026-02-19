@@ -244,16 +244,26 @@ function mod.filter(cursor, index_num, index_name, args)
             where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
           end
         elseif COMPARISON_OPERATORS[constraint_op] then
-          if column == 'timestamp' then
-            column = "DATETIME(timestamp, 'unixepoch', 'localtime')"
-          elseif column == 'raw_timestamp' then
-            column = 'timestamp'
-          end
-
-          if arg_pos ~= 0 then
-            where_pieces[#where_pieces + 1] = string.format('%s %s %s', column, constraint_op, add_param(params, args[arg_pos]))
+          if column == 'h' then
+            if arg_pos ~= 0 then
+              where_pieces[#where_pieces + 1] = string.format('(entry %s %s OR cwd %s %s)',
+                constraint_op, add_param(params, args[arg_pos]),
+                constraint_op, add_param(params, args[arg_pos]))
+            else
+              where_pieces[#where_pieces + 1] = string.format('(entry %s OR cwd %s)', constraint_op, constraint_op)
+            end
           else
-            where_pieces[#where_pieces + 1] = string.format('%s %s', column, constraint_op)
+            if column == 'timestamp' then
+              column = "DATETIME(timestamp, 'unixepoch', 'localtime')"
+            elseif column == 'raw_timestamp' then
+              column = 'timestamp'
+            end
+
+            if arg_pos ~= 0 then
+              where_pieces[#where_pieces + 1] = string.format('%s %s %s', column, constraint_op, add_param(params, args[arg_pos]))
+            else
+              where_pieces[#where_pieces + 1] = string.format('%s %s', column, constraint_op)
+            end
           end
         else
           error(string.format('constraint op %q NYI (hint = %q)', constraint_op, hint))
