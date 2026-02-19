@@ -359,6 +359,62 @@ AND   entry LIKE '%vim%'
     ]],
     unordered = true,
   },
+
+  -- hostname IS 'host1' (null-safe equality)
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE hostname IS 'host1'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   hostname IS 'host1'
+    ]],
+    unordered = true,
+  },
+
+  -- hostname IS NOT 'host1' (null-safe inequality)
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE hostname IS NOT 'host1'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   hostname IS NOT 'host1'
+    ]],
+    unordered = true,
+  },
+
+  -- duration IS NULL
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE duration IS NULL',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   duration IS NULL
+    ]],
+    unordered = true,
+  },
+
+  -- duration IS NOT NULL
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE duration IS NOT NULL',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   duration IS NOT NULL
+    ]],
+    unordered = true,
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column
