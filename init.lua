@@ -68,23 +68,14 @@ function mod.connect(db, args)
     end
   end
 
-  -- XXX inspect the schema for main.history and use that?
-  db:declare_vtab [[CREATE TABLE _ (
-    hostname HIDDEN,
-    session_id TEXT, -- shell PID
-    timestamp text not null,
-    raw_timestamp HIDDEN integer not null,
-    history_id HIDDEN, -- $HISTCMD
-    cwd,
-    entry,
-    duration HIDDEN,
-    exit_status HIDDEN,
+  local columns = {}
+  for i = 1, #SCHEMA do
+    local column = SCHEMA[i]
+    columns[#columns + 1] = string.format('%s %s %s', column.name, column.hidden and 'HIDDEN' or '', column.type)
+  end
 
-    yesterday hidden,
-    today HIDDEN,
-    h HIDDEN
-  )
-  ]]
+  local create_table = 'CREATE TABLE _ (\n' .. table.concat(columns, ',\n') .. '\n)'
+  assert(db:declare_vtab(create_table))
 
   return {
     db = sqlite3.open_ptr(db:get_ptr()),
