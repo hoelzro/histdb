@@ -9,19 +9,54 @@ local mod = {
   destroy = function() end,
 }
 
-local COLUMNS = {
-  [0] = 'hostname',
-  'session_id',
-  'timestamp',
-  'raw_timestamp',
-  'history_id',
-  'cwd',
-  'entry',
-  'duration',
-  'exit_status',
-  'yesterday',
-  'today',
-  'h',
+local SCHEMA = {
+  {
+    name   = 'hostname',
+    hidden = true,
+  },
+  {
+    name = 'session_id',
+    type = 'TEXT',
+  },
+  {
+    name = 'timestamp',
+    type = 'TEXT NOT NULL',
+  },
+  {
+    name   = 'raw_timestamp',
+    type   = 'INTEGER NOT NULL',
+    hidden = true,
+  },
+  {
+    name   = 'history_id',
+    hidden = true,
+  },
+  {
+    name = 'cwd',
+  },
+  {
+    name = 'entry',
+  },
+  {
+    name   = 'duration',
+    hidden = true,
+  },
+  {
+    name   = 'exit_status',
+    hidden = true,
+  },
+  {
+    name   = 'yesterday',
+    hidden = true,
+  },
+  {
+    name   = 'today',
+    hidden = true,
+  },
+  {
+    name   = 'h',
+    hidden = true,
+  },
 }
 
 function mod.connect(db, args)
@@ -95,18 +130,18 @@ function mod.best_index(vtab, info)
 
     if c.op == 'match' then
       -- XXX make sure c.column is a matchable column
-      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], next_argv)
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, next_argv)
 
       cu.argv_index = next_argv
       next_argv = next_argv + 1
       cu.omit = true
     elseif c.op == 'is null' or c.op == 'is not null' then
-      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], 0)
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, 0)
 
       cu.omit = true
     elseif COMPARISON_OPERATORS[c.op] then
       -- XXX make sure c.column is a comparable column
-      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, COLUMNS[c.column], next_argv)
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, next_argv)
 
       cu.argv_index = next_argv
       next_argv = next_argv + 1
@@ -130,7 +165,7 @@ function mod.best_index(vtab, info)
 
     for i = 1, #info.order_by do
       local o = info.order_by[i]
-      index_str_pieces[#index_str_pieces + 1] = string.format('order:%s:%s', COLUMNS[o.column], o.desc and 'DESC' or 'ASC')
+      index_str_pieces[#index_str_pieces + 1] = string.format('order:%s:%s', SCHEMA[o.column + 1].name, o.desc and 'DESC' or 'ASC')
     end
   end
 
