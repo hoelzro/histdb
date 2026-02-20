@@ -9,6 +9,12 @@ local mod = {
   destroy = function() end,
 }
 
+local function simple_expr(expr)
+  return function()
+    return expr
+  end
+end
+
 local SCHEMA = {
   {
     name   = 'hostname',
@@ -21,11 +27,13 @@ local SCHEMA = {
   {
     name = 'timestamp',
     type = 'TEXT NOT NULL',
+    expr = simple_expr "DATETIME(timestamp, 'unixepoch', 'localtime')",
   },
   {
     name   = 'raw_timestamp',
     type   = 'INTEGER NOT NULL',
     hidden = true,
+    expr   = simple_expr 'timestamp',
   },
   {
     name   = 'history_id',
@@ -48,16 +56,28 @@ local SCHEMA = {
   {
     name   = 'yesterday',
     hidden = true,
+    expr   = simple_expr "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime')",
   },
   {
     name   = 'today',
     hidden = true,
+    expr   = simple_expr "DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime')",
   },
   {
     name   = 'h',
     hidden = true,
+    expr   = simple_expr '1',
   },
 }
+
+for i = 1, #SCHEMA do
+  local column = SCHEMA[i]
+
+  -- default expr to just use the underlying column of the same name
+  if not column.expr then
+    column.expr = simple_expr(column.name)
+  end
+end
 
 function mod.connect(db, args)
   local debug = false
@@ -320,28 +340,29 @@ function mod.filter(cursor, index_num, index_name, args)
     end
   end
 
-  local sql = template([[
-    SELECT
-      rowid,
-      hostname,
-      session_id,
-      DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
-      timestamp AS raw_timestamp,
-      history_id,
-      cwd,
-      entry,
-      duration,
-      exit_status,
-      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', '-1 days', 'localtime') AS yesterday,
-      DATE(timestamp, 'unixepoch', 'localtime') = DATE('now', 'localtime') AS today,
-      1 AS h
+  local fields = {'rowid'}
+
+  for i = 1, #SCHEMA do
+    local column = SCHEMA[i]
+    local select_expr = column.expr 'select'
+
+    if select_expr ~= column.name then
+      fields[#fields + 1] = string.format('%s AS %s', select_expr, SCHEMA[i].name)
+    else
+      fields[#fields + 1] = SCHEMA[i].name
+    end
+  end
+
+  local template_sql = 'SELECT\n' .. table.concat(fields, ',\n') .. [[
     FROM history
     WHERE session_id <> :session_id AND timestamp IS NOT NULL AND TYPEOF(timestamp) = 'integer'
     «where_clause»
     «order_by_clause»
     «limit_clause»
     «offset_clause»
-  ]], {
+  ]]
+
+  local sql = template(template_sql, {
     where_clause    = where_clause,
     order_by_clause = order_by_clause,
     limit_clause    = limit_clause,
