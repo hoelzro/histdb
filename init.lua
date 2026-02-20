@@ -9,9 +9,22 @@ local mod = {
   destroy = function() end,
 }
 
+local function add_param(params, value)
+  params[#params + 1] = value
+  return ':param' .. tostring(#params)
+end
+
 local function simple_expr(expr)
-  return function()
-    return expr
+  return function(context, op, params, arg)
+    if context == 'select' then
+      return expr
+    elseif context == 'where' then
+      if arg then
+        return string.format('%s %s %s', expr, op, add_param(params, arg))
+      else
+        return string.format('%s %s', expr, op)
+      end
+    end
   end
 end
 
@@ -66,12 +79,26 @@ local SCHEMA = {
   {
     name   = 'h',
     hidden = true,
-    expr   = simple_expr '1',
+    expr   = function(context, op, params, arg)
+      if context == 'select' then
+        return '1'
+      elseif context == 'where' then
+        if arg then
+          local param = add_param(params, arg)
+          return string.format('(entry %s %s OR cwd %s %s)', op, param, op, param)
+        else
+          return string.format('(entry %s OR cwd %s)', op, op)
+        end
+      end
+    end,
   },
 }
 
 for i = 1, #SCHEMA do
   local column = SCHEMA[i]
+
+  -- build a reverse mapping, so we can address columns by index or by name
+  SCHEMA[column.name] = column
 
   -- default expr to just use the underlying column of the same name
   if not column.expr then
@@ -199,11 +226,6 @@ function mod.close(cursor)
   cursor.stmt:finalize()
 end
 
-local function add_param(params, value)
-  params[#params + 1] = value
-  return ':param' .. tostring(#params)
-end
-
 local function timestamp_match_expr(expr, params)
   -- MATCH 'since yesterday'
   -- MATCH 'since last week'
@@ -290,26 +312,10 @@ function mod.filter(cursor, index_num, index_name, args)
             where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
           end
         elseif COMPARISON_OPERATORS[constraint_op] then
-          if column == 'h' then
-            if arg_pos ~= 0 then
-              where_pieces[#where_pieces + 1] = string.format('(entry %s %s OR cwd %s %s)',
-                constraint_op, add_param(params, args[arg_pos]),
-                constraint_op, add_param(params, args[arg_pos]))
-            else
-              where_pieces[#where_pieces + 1] = string.format('(entry %s OR cwd %s)', constraint_op, constraint_op)
-            end
+          if arg_pos ~= 0 then
+            where_pieces[#where_pieces + 1] = SCHEMA[column].expr('where', constraint_op, params, args[arg_pos])
           else
-            if column == 'timestamp' then
-              column = "DATETIME(timestamp, 'unixepoch', 'localtime')"
-            elseif column == 'raw_timestamp' then
-              column = 'timestamp'
-            end
-
-            if arg_pos ~= 0 then
-              where_pieces[#where_pieces + 1] = string.format('%s %s %s', column, constraint_op, add_param(params, args[arg_pos]))
-            else
-              where_pieces[#where_pieces + 1] = string.format('%s %s', column, constraint_op)
-            end
+            where_pieces[#where_pieces + 1] = SCHEMA[column].expr('where', constraint_op)
           end
         else
           error(string.format('constraint op %q NYI (hint = %q)', constraint_op, hint))
