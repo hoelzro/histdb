@@ -14,6 +14,49 @@ local function add_param(params, value)
   return ':param' .. tostring(#params)
 end
 
+local function timestamp_match_expr(context, op, params, expr)
+  -- MATCH 'since yesterday'
+  -- MATCH 'since last week'
+  -- MATCH 'on 2022-03-01'
+  -- MATCH 'between 2022-03-01 and 2022-03-02'
+  -- XXX is "last week" one week ago today, or last Sunday, etc?
+  -- XXX does "yesterday" include an event from 00:15:00 this morning?
+  -- searching by a specific time
+  local start_time, end_time = assert(match_timestamps.resolve({}, expr))
+  return string.format("timestamp BETWEEN %s AND %s", add_param(params, start_time), add_param(params, end_time))
+end
+
+local function entry_match_expr(context, op, params, expr)
+  local conditions = {}
+  for token in string.gmatch(expr, '(%S+)') do
+    local placeholder = add_param(params, '%' .. token .. '%')
+    conditions[#conditions+1] = 'entry LIKE ' .. placeholder
+  end
+
+  if #conditions > 0 then
+    return '(' .. table.concat(conditions, ' AND ') .. ')'
+  end
+end
+
+local function cwd_match_expr(context, op, params, expr)
+  -- XXX more powerful match language
+  return 'cwd LIKE ' .. add_param(params, '%' .. expr .. '%')
+end
+
+-- `h MATCH 'foo bar'` means that "foo" must be found between (entry, cwd) and "bar" must be found between (entry, cwd) - but they don't necessarily need to be in both
+local function all_match_expr(context, op, params, expr)
+  local conditions = {}
+  for token in string.gmatch(expr, '(%S+)') do
+    local placeholder = add_param(params, '%' .. token .. '%')
+    -- XXX duplication of entry_match_expr and cwd_match_expr logic :(
+    conditions[#conditions+1] = string.format('(entry LIKE %s OR cwd LIKE %s)', placeholder, placeholder)
+  end
+
+  if #conditions > 0 then
+    return '(' .. table.concat(conditions, ' AND ') .. ')'
+  end
+end
+
 local function simple_expr(expr)
   return function(context, op, params, arg)
     if context == 'select' then
@@ -24,6 +67,17 @@ local function simple_expr(expr)
       else
         return string.format('%s %s', expr, op)
       end
+    end
+  end
+end
+
+local function with_match(wrapped_fn, match_fn)
+  return function(...)
+    local context, op = ...
+    if context == 'where' and op == 'match' then
+      return match_fn(...)
+    else
+      return wrapped_fn(...)
     end
   end
 end
@@ -40,7 +94,7 @@ local SCHEMA = {
   {
     name = 'timestamp',
     type = 'TEXT NOT NULL',
-    expr = simple_expr "DATETIME(timestamp, 'unixepoch', 'localtime')",
+    expr = with_match(simple_expr "DATETIME(timestamp, 'unixepoch', 'localtime')", timestamp_match_expr),
   },
   {
     name   = 'raw_timestamp',
@@ -54,9 +108,11 @@ local SCHEMA = {
   },
   {
     name = 'cwd',
+    expr = with_match(simple_expr 'cwd', cwd_match_expr),
   },
   {
     name = 'entry',
+    expr = with_match(simple_expr 'entry', entry_match_expr),
   },
   {
     name   = 'duration',
@@ -83,6 +139,10 @@ local SCHEMA = {
       if context == 'select' then
         return '1'
       elseif context == 'where' then
+        if op == 'match' then
+          return all_match_expr(context, op, params, arg)
+        end
+
         if arg then
           local param = add_param(params, arg)
           return string.format('(entry %s %s OR cwd %s %s)', op, param, op, param)
@@ -144,6 +204,7 @@ local COMPARISON_OPERATORS = {
   ['is null']     = true,
   ['is not null'] = true,
   ['like']        = true,
+  ['match']       = true,
 }
 
 -- this builds up a serialized list of hints to be used by the filter method below - more details there
@@ -166,14 +227,7 @@ function mod.best_index(vtab, info)
       goto continue
     end
 
-    if c.op == 'match' then
-      -- XXX make sure c.column is a matchable column
-      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, next_argv)
-
-      cu.argv_index = next_argv
-      next_argv = next_argv + 1
-      cu.omit = true
-    elseif c.op == 'is null' or c.op == 'is not null' then
+    if c.op == 'is null' or c.op == 'is not null' then
       index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, 0)
 
       cu.omit = true
@@ -226,49 +280,6 @@ function mod.close(cursor)
   cursor.stmt:finalize()
 end
 
-local function timestamp_match_expr(expr, params)
-  -- MATCH 'since yesterday'
-  -- MATCH 'since last week'
-  -- MATCH 'on 2022-03-01'
-  -- MATCH 'between 2022-03-01 and 2022-03-02'
-  -- XXX is "last week" one week ago today, or last Sunday, etc?
-  -- XXX does "yesterday" include an event from 00:15:00 this morning?
-  -- searching by a specific time
-  local start_time, end_time = assert(match_timestamps.resolve({}, expr))
-  return string.format("timestamp BETWEEN %s AND %s", add_param(params, start_time), add_param(params, end_time))
-end
-
-local function entry_match_expr(expr, params)
-  local conditions = {}
-  for token in string.gmatch(expr, '(%S+)') do
-    local placeholder = add_param(params, '%' .. token .. '%')
-    conditions[#conditions+1] = 'entry LIKE ' .. placeholder
-  end
-
-  if #conditions > 0 then
-    return '(' .. table.concat(conditions, ' AND ') .. ')'
-  end
-end
-
-local function cwd_match_expr(expr, params)
-  -- XXX more powerful match language
-  return 'cwd LIKE ' .. add_param(params, '%' .. expr .. '%')
-end
-
--- `h MATCH 'foo bar'` means that "foo" must be found between (entry, cwd) and "bar" must be found between (entry, cwd) - but they don't necessarily need to be in both
-local function all_match_expr(expr, params)
-  local conditions = {}
-  for token in string.gmatch(expr, '(%S+)') do
-    local placeholder = add_param(params, '%' .. token .. '%')
-    -- XXX duplication of entry_match_expr and cwd_match_expr logic :(
-    conditions[#conditions+1] = string.format('(entry LIKE %s OR cwd LIKE %s)', placeholder, placeholder)
-  end
-
-  if #conditions > 0 then
-    return '(' .. table.concat(conditions, ' AND ') .. ')'
-  end
-end
-
 local function template(tmpl, tmpl_vars)
   return string.gsub(tmpl, '«(.-)»', function(var)
     return assert(tmpl_vars[var], string.format('missing template variable %q', var))
@@ -301,17 +312,7 @@ function mod.filter(cursor, index_num, index_name, args)
         local constraint_op, column, arg_pos = string.match(hint_args, '(.+):(.+):(%d+)')
         arg_pos = tonumber(arg_pos)
 
-        if constraint_op == 'match' then
-          if column == 'timestamp' then
-            where_pieces[#where_pieces + 1] = timestamp_match_expr(args[arg_pos], params)
-          elseif column == 'cwd' then
-            where_pieces[#where_pieces + 1] = cwd_match_expr(args[arg_pos], params)
-          elseif column == 'entry' then
-            where_pieces[#where_pieces + 1] = entry_match_expr(args[arg_pos], params)
-          elseif column == 'h' then
-            where_pieces[#where_pieces + 1] = all_match_expr(args[arg_pos], params)
-          end
-        elseif COMPARISON_OPERATORS[constraint_op] then
+        if COMPARISON_OPERATORS[constraint_op] then
           if arg_pos ~= 0 then
             where_pieces[#where_pieces + 1] = SCHEMA[column].expr('where', constraint_op, params, args[arg_pos])
           else
