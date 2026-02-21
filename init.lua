@@ -216,34 +216,33 @@ function mod.best_index(vtab, info)
 
   local constraint_usage = {}
   local index_str_pieces = {}
-  local next_argv = 1
+  local _next_argv = 1
   local order_by_consumed
+
+  local function next_argv(cu)
+    cu.argv_index = _next_argv
+    _next_argv = _next_argv + 1
+    return cu.argv_index
+  end
 
   for i = 1, #info.constraints do
     local c = info.constraints[i]
-    local cu = {}
+    local cu = { omit = true }
 
     if not c.usable then
       goto continue
     end
 
     if c.op == 'is null' or c.op == 'is not null' then
+      -- XXX make sure c.column is a comparable column
       index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, 0)
-
-      cu.omit = true
     elseif COMPARISON_OPERATORS[c.op] then
       -- XXX make sure c.column is a comparable column
-      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, next_argv)
-
-      cu.argv_index = next_argv
-      next_argv = next_argv + 1
-      cu.omit = true
+      index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, next_argv(cu))
     elseif c.op == 'limit' or c.op == 'offset' then
-      index_str_pieces[#index_str_pieces + 1] = string.format('%s:%d', c.op, next_argv)
-
-      cu.argv_index = next_argv
-      next_argv = next_argv + 1
-      cu.omit = true
+      index_str_pieces[#index_str_pieces + 1] = string.format('%s:%d', c.op, next_argv(cu))
+    else
+      goto continue
     end
 
     constraint_usage[i] = cu
