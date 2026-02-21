@@ -192,19 +192,19 @@ end
 
 mod.create = mod.connect
 
-local COMPARISON_OPERATORS = {
-  ['=']           = true,
-  ['<>']          = true,
-  ['>']           = true,
-  ['>=']          = true,
-  ['<']           = true,
-  ['<=']          = true,
-  ['is']          = true,
-  ['is not']      = true,
-  ['is null']     = true,
-  ['is not null'] = true,
-  ['like']        = true,
-  ['match']       = true,
+local COMPARISON_OPERATOR_ARITY = {
+  ['=']           = 'binary',
+  ['<>']          = 'binary',
+  ['>']           = 'binary',
+  ['>=']          = 'binary',
+  ['<']           = 'binary',
+  ['<=']          = 'binary',
+  ['is']          = 'binary',
+  ['is not']      = 'binary',
+  ['is null']     = 'unary',
+  ['is not null'] = 'unary',
+  ['like']        = 'binary',
+  ['match']       = 'binary',
 }
 
 -- this builds up a serialized list of hints to be used by the filter method below - more details there
@@ -233,10 +233,10 @@ function mod.best_index(vtab, info)
       goto continue
     end
 
-    if c.op == 'is null' or c.op == 'is not null' then
+    if COMPARISON_OPERATOR_ARITY[c.op] == 'unary' then
       -- XXX make sure c.column is a comparable column
       index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, 0)
-    elseif COMPARISON_OPERATORS[c.op] then
+    elseif COMPARISON_OPERATOR_ARITY[c.op] == 'binary' then
       -- XXX make sure c.column is a comparable column
       index_str_pieces[#index_str_pieces + 1] = string.format('constraint:%s:%s:%d', c.op, SCHEMA[c.column + 1].name, next_argv(cu))
     elseif c.op == 'limit' or c.op == 'offset' then
@@ -311,7 +311,7 @@ function mod.filter(cursor, index_num, index_name, args)
         local constraint_op, column, arg_pos = string.match(hint_args, '(.+):(.+):(%d+)')
         arg_pos = tonumber(arg_pos)
 
-        if COMPARISON_OPERATORS[constraint_op] then
+        if COMPARISON_OPERATOR_ARITY[constraint_op] then
           if arg_pos ~= 0 then
             where_pieces[#where_pieces + 1] = SCHEMA[column].expr('where', constraint_op, params, args[arg_pos])
           else
