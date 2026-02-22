@@ -482,6 +482,48 @@ WHERE TYPEOF(timestamp) = 'integer'
 AND   (entry LIKE '%rob%' OR cwd LIKE '%rob%')
     ]],
   },
+
+  -- session_id = integer literal (type affinity regression test)
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE session_id = 737207',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   session_id = 737207
+    ]],
+    unordered = true,
+  },
+
+  -- session_id = string literal (should match same rows as integer literal)
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE session_id = '737207'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   session_id = '737207'
+    ]],
+    unordered = true,
+  },
+
+  -- session_id stored as INTEGER, queried with integer literal
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE session_id = 123456',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   session_id = 123456
+    ]],
+    unordered = true,
+  },
 }
 
 -- when filtering by `timestamp IS NOT NULL`, each row should have a non-NULL timestamp column

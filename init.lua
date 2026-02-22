@@ -90,6 +90,7 @@ local SCHEMA = {
   {
     name = 'session_id',
     type = 'TEXT',
+    expr = simple_expr 'CAST(session_id AS TEXT)',
   },
   {
     name = 'timestamp',
