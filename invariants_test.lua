@@ -549,6 +549,26 @@ do
   assert(#results == 0)
 end
 
+-- Self-join: filter() is called repeatedly on the inner cursor (once per outer row).
+-- Regression test: previously, each filter() call leaked the previous prepared statement,
+-- causing db:close() to return SQLITE_BUSY (5) instead of SQLITE_OK (0).
+do
+  local sqlite3 = require 'lsqlite3'
+  local db_path = os.getenv 'HISTDB_PATH'
+  local db = sqlite3.open(db_path)
+  db:load_extension('./lua-vtable.so')
+  db:exec("SELECT lua_create_module_from_file('histdb.lua')")
+  db:exec('CREATE VIRTUAL TABLE temp.h2 USING h')
+
+  for row in db:nrows('SELECT a.session_id, b.entry FROM h2 AS a INNER JOIN h2 AS b ON b.session_id = a.session_id LIMIT 5') do
+  end
+
+  local close_code = db:close()
+  assert(close_code == sqlite3.OK,
+    string.format('db:close() returned %d after self-join (expected %d/OK) — likely unfinalized statements',
+      close_code, sqlite3.OK))
+end
+
 for i = 1, #invariants do
   local inv = invariants[i]
 
