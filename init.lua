@@ -304,7 +304,10 @@ function mod.open(vtab)
 end
 
 function mod.close(cursor)
-  cursor.stmt:finalize()
+  if cursor.stmt then
+    cursor.stmt:finalize()
+    cursor.stmt = nil
+  end
 end
 
 local function template(tmpl, tmpl_vars)
@@ -314,6 +317,11 @@ local function template(tmpl, tmpl_vars)
 end
 
 function mod.filter(cursor, index_num, index_name, args)
+  if cursor.stmt then
+    cursor.stmt:finalize()
+    cursor.stmt = nil
+  end
+
   if cursor.debug then
     local pretty = require 'pretty'
 
