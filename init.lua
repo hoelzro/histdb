@@ -220,6 +220,9 @@ function mod.best_index(vtab, info)
   local _next_argv = 1
   local order_by_consumed
 
+  local estimated_cost = 1000000
+  local estimated_rows = 1000000
+
   local function next_argv(cu)
     cu.argv_index = _next_argv
     _next_argv = _next_argv + 1
@@ -246,6 +249,28 @@ function mod.best_index(vtab, info)
       goto continue
     end
 
+    -- cost estimation: apply selectivity divisors per constraint type
+    local selectivity = ({
+      match      = 100,
+      ['=']      = 10,
+      is         = 10,
+      like       = 5,
+      ['>']      = 3,
+      ['>=']     = 3,
+      ['<']      = 3,
+      ['<=']     = 3,
+      ['is null']     = 2,
+      ['is not null'] = 2,
+      limit      = 2,
+    })[c.op]
+    if selectivity then
+      estimated_cost = estimated_cost / selectivity
+      estimated_rows = estimated_rows / selectivity
+    elseif c.op == '<>' or c.op == 'is not' then
+      estimated_cost = estimated_cost * 0.9
+      estimated_rows = estimated_rows * 0.9
+    end
+
     constraint_usage[i] = cu
 
     ::continue::
@@ -265,6 +290,8 @@ function mod.best_index(vtab, info)
     constraint_usage = constraint_usage,
     index_str = #index_str_pieces > 0 and table.concat(index_str_pieces, ';') or nil,
     order_by_consumed = order_by_consumed,
+    estimated_cost = estimated_cost,
+    estimated_rows = math.floor(estimated_rows),
   }
 end
 
