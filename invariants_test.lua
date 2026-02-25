@@ -543,6 +543,13 @@ do
   end
 end
 
+-- Querying by oid/rowid should not crash best_index (regression: c.column == -1)
+do
+  local results = get_query_results 'SELECT * FROM h WHERE oid = 1'
+  -- may return 0 or 1 rows; the point is it doesn't error
+  assert(#results <= 1)
+end
+
 -- Verify that no results returns {} rather than errors out
 do
   local results = get_query_results 'SELECT 1 FROM h WHERE 1 = 0'
