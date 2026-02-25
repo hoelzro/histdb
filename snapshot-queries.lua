@@ -7,6 +7,8 @@ local json = require 'dkjson'
 local ptime = require 'posix.time'
 local sqlite3 = require 'lsqlite3'
 
+local QUERY_TIMEOUT_SECONDS = 60
+
 local function monotime()
   local ts = ptime.clock_gettime(ptime.CLOCK_MONOTONIC)
   return ts.tv_sec + ts.tv_nsec * 1e-9
@@ -27,8 +29,16 @@ db:load_extension('./lua-vtable.so')
 db:exec("SELECT lua_create_module_from_file('histdb.lua')")
 db:exec('CREATE VIRTUAL TABLE temp.h USING h')
 
+local start_time = nil
+db:progress_handler(1000000, function()
+  if monotime() - start_time > QUERY_TIMEOUT_SECONDS then
+    db:interrupt()
+  end
+end)
+
 local function get_query_results(sql)
   local rows = {}
+  start_time = monotime()
   local ok, err = pcall(function()
     for row in db:nrows(sql) do
       rows[#rows + 1] = row
