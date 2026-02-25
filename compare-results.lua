@@ -45,6 +45,44 @@ local function deep_equal(a, b)
   return true
 end
 
+local function sorted_result(results)
+  local copy = {}
+  for i, v in ipairs(results) do
+    copy[i] = v
+  end
+
+  table.sort(copy, function(a, b)
+    if type(a) ~= 'table' or type(b) ~= 'table' then
+      return tostring(a) < tostring(b)
+    end
+
+    local uniq_keys = {}
+    for k in pairs(a) do
+      uniq_keys[k] = true
+    end
+    for k in pairs(b) do
+      uniq_keys[k] = true
+    end
+
+    local sorted_keys = {}
+    for k in pairs(uniq_keys) do
+      sorted_keys[#sorted_keys + 1] = k
+    end
+    table.sort(sorted_keys)
+
+    for i = 1, #sorted_keys do
+      local k = sorted_keys[i]
+
+      local a_value, b_value = tostring(a[k]), tostring(b[k])
+      if a_value ~= b_value then
+        return a_value < b_value
+      end
+    end
+    return false
+  end)
+  return copy
+end
+
 local snap_a = load_snapshot(path_a)
 local snap_b = load_snapshot(path_b)
 
@@ -95,7 +133,14 @@ for _, query in ipairs(all_queries) do
       differs = true
       reason = string.format('row count: %d -> %d', #a_res, #b_res)
       if #a_res == #b_res then
-        reason = string.format('same row count (%d) but content differs', #a_res)
+        -- Check whether the difference is only in ordering
+        local sorted_a = sorted_result(a_res)
+        local sorted_b = sorted_result(b_res)
+        if deep_equal(sorted_a, sorted_b) then
+          reason = string.format('same row count (%d), same content, ORDER DIFFERS', #a_res)
+        else
+          reason = string.format('same row count (%d) but content differs', #a_res)
+        end
       end
     end
 
