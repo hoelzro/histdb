@@ -17,11 +17,14 @@ end
 local function load_snapshot(path)
   local records = {}
   local f = assert(io.open(path, 'r'))
+  local line_no = 1
   for line in f:lines() do
     local rec = json.decode(line)
     if rec and rec.query then
       records[rec.query] = rec
     end
+    rec.line = line_no
+    line_no = line_no + 1
   end
   f:close()
   return records
@@ -98,7 +101,7 @@ for _, query in ipairs(all_queries) do
 
     if differs then
       diffs = diffs + 1
-      print(string.format('[%d] DIFF: %s', diffs, query))
+      print(string.format('[%d] DIFF: (lines %d and %d) %s', diffs, rec_a.line, rec_b.line, query))
       print(string.format('  %s', reason))
       print()
     end
