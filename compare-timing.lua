@@ -62,7 +62,8 @@ local regressions = {}
 
 for query, rec_a in pairs(snap_a) do
   local rec_b = snap_b[query]
-  if rec_b and rec_a.elapsed_ms and rec_b.elapsed_ms then
+  if rec_b and rec_a.elapsed_ms and rec_b.elapsed_ms
+     and not rec_a.error and not rec_b.error then
     local ms_a = rec_a.elapsed_ms
     local ms_b = rec_b.elapsed_ms
     local abs_diff = ms_b - ms_a
