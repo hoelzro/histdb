@@ -148,6 +148,27 @@ for _, query in ipairs(all_queries) do
       diffs = diffs + 1
       print(string.format('[%d] DIFF: (lines %d and %d) %s', diffs, rec_a.line, rec_b.line, query))
       print(string.format('  %s', reason))
+      if a_res and b_res then
+        -- Show the first differing row as an example
+        if #a_res ~= #b_res then
+          -- Row count differs: show an extra row from the longer side
+          if #a_res > #b_res then
+            print(string.format('  example (extra row in A): %s', json.encode(a_res[#b_res + 1])))
+          else
+            print(string.format('  example (extra row in B): %s', json.encode(b_res[#a_res + 1])))
+          end
+        else
+          -- Same count, find first row that differs
+          for i = 1, #a_res do
+            if not deep_equal(a_res[i], b_res[i]) then
+              print(string.format('  example (row %d):', i))
+              print(string.format('    A: %s', json.encode(a_res[i])))
+              print(string.format('    B: %s', json.encode(b_res[i])))
+              break
+            end
+          end
+        end
+      end
       print()
     end
   end
