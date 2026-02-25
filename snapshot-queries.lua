@@ -39,14 +39,23 @@ end)
 local function get_query_results(sql)
   local rows = {}
   start_time = monotime()
-  local ok, err = pcall(function()
-    for row in db:nrows(sql) do
-      rows[#rows + 1] = row
-    end
-  end)
-  if not ok then
-    return nil, err
+  local stmt = db:prepare(sql)
+  if not stmt then
+    return nil, db:errmsg()
   end
+
+  local names = stmt:get_names()
+  while stmt:step() == sqlite3.ROW do
+    local row = stmt:get_named_values()
+    for i = 1, #names do
+      if row[names[i]] == nil then
+        row[names[i]] = json.null
+      end
+    end
+    rows[#rows + 1] = row
+  end
+  stmt:finalize()
+
   if db:errcode() ~= sqlite3.OK and db:errcode() ~= sqlite3.DONE then
     return nil, db:errmsg()
   end
