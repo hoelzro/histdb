@@ -83,6 +83,9 @@ local function with_match(wrapped_fn, match_fn)
 end
 
 local SCHEMA = {
+  [0] = {
+    name = 'rowid',
+  },
   {
     name   = 'hostname',
     hidden = true,
@@ -155,7 +158,7 @@ local SCHEMA = {
   },
 }
 
-for i = 1, #SCHEMA do
+for i = 0, #SCHEMA do
   local column = SCHEMA[i]
 
   -- build a reverse mapping, so we can address columns by index or by name
@@ -177,6 +180,7 @@ function mod.connect(db, args)
   end
 
   local columns = {}
+  -- deliberately skip over SCHEMA[0], which is rowid (and thus should be omitted from CREATE TABLE)
   for i = 1, #SCHEMA do
     local column = SCHEMA[i]
     columns[#columns + 1] = string.format('%s %s %s', column.name, column.hidden and 'HIDDEN' or '', column.type)
@@ -382,9 +386,9 @@ function mod.filter(cursor, index_num, index_name, args)
     end
   end
 
-  local fields = {'rowid'}
+  local fields = {}
 
-  for i = 1, #SCHEMA do
+  for i = 0, #SCHEMA do
     local column = SCHEMA[i]
     local select_expr = column.expr 'select'
 
