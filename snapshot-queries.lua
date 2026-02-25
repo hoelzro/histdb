@@ -5,6 +5,7 @@
 
 local json = require 'dkjson'
 local ptime = require 'posix.time'
+local pstdlib = require 'posix.stdlib'
 local sqlite3 = require 'lsqlite3'
 
 local QUERY_TIMEOUT_SECONDS = 60
@@ -21,6 +22,9 @@ if not db_path or not query_file then
   io.stderr:write('Usage: snapshot-queries.lua <db-path> <query-file.jsonl>\n')
   os.exit(1)
 end
+
+-- file:// URI requires an absolute path
+db_path = assert(pstdlib.realpath(db_path))
 
 -- Open DB and set up virtual table
 local db = sqlite3.open('file://' .. db_path .. '?immutable=true', sqlite3.OPEN_READONLY + sqlite3.OPEN_URI)
