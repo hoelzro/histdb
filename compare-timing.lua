@@ -57,8 +57,11 @@ end
 local snap_a = load_snapshot(path_a)
 local snap_b = load_snapshot(path_b)
 
--- Only compare queries present in both snapshots with valid timings
+-- Compare queries present in both snapshots with valid timings
 local regressions = {}
+local all_diffs = {}
+local total_a, total_b = 0, 0
+local n_faster, n_slower, n_same = 0, 0, 0
 
 for query, rec_a in pairs(snap_a) do
   local rec_b = snap_b[query]
@@ -69,7 +72,12 @@ for query, rec_a in pairs(snap_a) do
     local abs_diff = ms_b - ms_a
     local pct_diff = ms_a > 0 and (abs_diff / ms_a * 100) or (ms_b > 0 and math.huge or 0)
 
+    total_a = total_a + ms_a
+    total_b = total_b + ms_b
+    all_diffs[#all_diffs + 1] = pct_diff
+
     if abs_diff > threshold_ms and pct_diff > threshold_pct then
+      n_slower = n_slower + 1
       regressions[#regressions + 1] = {
         query = query,
         ms_a = ms_a,
@@ -77,6 +85,10 @@ for query, rec_a in pairs(snap_a) do
         abs_diff = abs_diff,
         pct_diff = pct_diff,
       }
+    elseif abs_diff < -threshold_ms and pct_diff < -threshold_pct then
+      n_faster = n_faster + 1
+    else
+      n_same = n_same + 1
     end
   end
 end
@@ -84,12 +96,10 @@ end
 -- Sort by absolute regression, worst first
 table.sort(regressions, function(a, b) return a.abs_diff > b.abs_diff end)
 
+local n_compared = #all_diffs
+
 io.stderr:write(string.format('Thresholds: >%d%% AND >%dms\n', threshold_pct, threshold_ms))
-io.stderr:write(string.format('Queries compared: %d\n', (function()
-  local n = 0
-  for q in pairs(snap_a) do if snap_b[q] then n = n + 1 end end
-  return n
-end)()))
+io.stderr:write(string.format('Queries compared: %d\n', n_compared))
 
 if #regressions == 0 then
   io.stderr:write('No regressions found.\n')
@@ -100,4 +110,22 @@ else
     print(string.format('  %dms -> %dms  (+%dms, +%.0f%%)', r.ms_a, r.ms_b, r.abs_diff, r.pct_diff))
     print()
   end
+end
+
+-- Overall summary
+if n_compared > 0 then
+  table.sort(all_diffs)
+  local median = n_compared % 2 == 1
+    and all_diffs[(n_compared + 1) / 2]
+    or (all_diffs[n_compared / 2] + all_diffs[n_compared / 2 + 1]) / 2
+
+  local total_diff = total_b - total_a
+  local total_pct = total_a > 0 and (total_diff / total_a * 100) or 0
+
+  io.stderr:write('--- Summary ---\n')
+  io.stderr:write(string.format('  Faster: %d   Slower: %d   Unchanged: %d\n',
+    n_faster, n_slower, n_same))
+  io.stderr:write(string.format('  Total time: %dms -> %dms  (%+dms, %+.1f%%)\n',
+    total_a, total_b, total_diff, total_pct))
+  io.stderr:write(string.format('  Median change: %+.1f%%\n', median))
 end
