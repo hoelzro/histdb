@@ -298,7 +298,7 @@ SELECT
   entry
 FROM history
 WHERE TYPEOF(timestamp) = 'integer'
-AND   exit_status = 0
+AND   CAST(exit_status AS INTEGER) = 0
     ]],
     unordered = true,
   },
@@ -312,7 +312,7 @@ SELECT
   entry
 FROM history
 WHERE TYPEOF(timestamp) = 'integer'
-AND   duration > 5
+AND   CAST(duration AS INTEGER) > 5
     ]],
     unordered = true,
   },
@@ -340,7 +340,7 @@ SELECT
   entry
 FROM history
 WHERE TYPEOF(timestamp) = 'integer'
-AND   exit_status <> 0
+AND   CAST(exit_status AS INTEGER) <> 0
     ]],
     unordered = true,
   },
@@ -354,7 +354,7 @@ SELECT
   entry
 FROM history
 WHERE TYPEOF(timestamp) = 'integer'
-AND   exit_status = 0
+AND   CAST(exit_status AS INTEGER) = 0
 AND   entry LIKE '%vim%'
     ]],
     unordered = true,
@@ -521,6 +521,62 @@ SELECT
 FROM history
 WHERE TYPEOF(timestamp) = 'integer'
 AND   session_id = 123456
+    ]],
+    unordered = true,
+  },
+
+  -- type affinity: exit_status <> 0 must match regardless of stored type (integer vs text)
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE exit_status <> 0',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   CAST(exit_status AS INTEGER) <> 0
+    ]],
+    unordered = true,
+  },
+
+  -- type affinity: exit_status = 0 must match regardless of stored type (integer vs text)
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE exit_status = 0',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   CAST(exit_status AS INTEGER) = 0
+    ]],
+    unordered = true,
+  },
+
+  -- type affinity: duration > 3 must match regardless of stored type
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE duration > 3',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   CAST(duration AS INTEGER) > 3
+    ]],
+    unordered = true,
+  },
+
+  -- type affinity: history_id = 12 must match regardless of stored type
+  test {
+    vtab_sql = 'SELECT timestamp, entry FROM h WHERE history_id = 12',
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   CAST(history_id AS INTEGER) = 12
     ]],
     unordered = true,
   },
