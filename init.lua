@@ -108,7 +108,9 @@ local SCHEMA = {
   },
   {
     name   = 'history_id',
+    type   = 'INTEGER',
     hidden = true,
+    expr   = simple_expr 'CAST(history_id AS INTEGER)',
   },
   {
     name = 'cwd',
@@ -120,11 +122,15 @@ local SCHEMA = {
   },
   {
     name   = 'duration',
+    type   = 'INTEGER',
     hidden = true,
+    expr   = simple_expr 'CAST(duration AS INTEGER)',
   },
   {
     name   = 'exit_status',
+    type   = 'INTEGER',
     hidden = true,
+    expr   = simple_expr 'CAST(exit_status AS INTEGER)',
   },
   {
     name   = 'yesterday',
