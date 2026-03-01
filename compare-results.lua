@@ -9,6 +9,7 @@ if not has_cjson then
   json = require 'dkjson'
 end
 
+local tointeger = math.tointeger
 
 local path_a = arg[1]
 local path_b = arg[2]
@@ -26,6 +27,17 @@ local function load_snapshot(path)
     local rec = json.decode(line)
     if rec and rec.query then
       records[rec.query] = rec
+    end
+    if rec.results then
+      for i = 1, #rec.results do
+        local res = rec.results[i]
+        if res.exit_status then
+          res.exit_status = tointeger(res.exit_status)
+        end
+        if res.history_id then
+          res.history_id = tointeger(res.history_id)
+        end
+      end
     end
     rec.line = line_no
     line_no = line_no + 1
