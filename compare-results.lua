@@ -4,7 +4,11 @@
 -- produced by snapshot-queries.lua. Reports any queries where the result sets
 -- differ between the two snapshots.
 
-local json = require 'dkjson'
+local has_cjson, json = pcall(require, 'cjson')
+if not has_cjson then
+  json = require 'dkjson'
+end
+
 
 local path_a = arg[1]
 local path_b = arg[2]

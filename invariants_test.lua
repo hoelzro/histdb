@@ -1,4 +1,15 @@
-local json = require 'dkjson'
+local has_cjson, json = pcall(require, 'cjson')
+if not has_cjson then
+  json = require 'dkjson'
+end
+
+local function json_decode(s)
+  if has_cjson then
+    return json.decode(s)
+  else
+    return json.decode(s, 1, json.null)
+  end
+end
 
 -- Invariants:
 --
@@ -8,8 +19,6 @@ local json = require 'dkjson'
 --   - LIMIT invariants
 --     - exactly LIMIT rows should be present (assuming sufficient rows)
 --   - ROWIDs are all unique
-
-local SENTINULL = setmetatable({}, {__tostring = function() return 'NULL' end})
 
 local function get_query_results(sql)
   sql = string.gsub(sql, '\n', ' ')
@@ -24,7 +33,7 @@ local function get_query_results(sql)
     return {}
   end
 
-  local res, _, err = json.decode(output, 1, SENTINULL)
+  local res, _, err = json_decode(output)
   assert(res, err)
   return res
 end
@@ -586,7 +595,7 @@ AND   CAST(history_id AS INTEGER) = 12
 do
   local results = get_query_results 'SELECT timestamp FROM h WHERE timestamp IS NOT NULL'
   for i = 1, #results do
-    assert(results[i].timestamp ~= SENTINULL)
+    assert(results[i].timestamp ~= json.null)
   end
 end
 

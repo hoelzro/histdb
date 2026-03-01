@@ -14,6 +14,7 @@ dependencies = {
    "lua >= 5.4",
    "lsqlite3",
    "lpeg",
+   "cjson",
    "dkjson",
    "luaposix",
 }

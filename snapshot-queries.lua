@@ -3,7 +3,11 @@
 -- snapshot-queries.lua: run each query from a JSONL query file against a
 -- histdb database and produce a JSONL snapshot of results with timing.
 
-local json = require 'dkjson'
+local has_cjson, json = pcall(require, 'cjson')
+if not has_cjson then
+  json = require 'dkjson'
+end
+
 local ptime = require 'posix.time'
 local pstdlib = require 'posix.stdlib'
 local sqlite3 = require 'lsqlite3'

@@ -7,7 +7,10 @@
 --   - more than --pct percent slower (default 20)
 --   - more than --ms milliseconds slower in absolute terms (default 50)
 
-local json = require 'dkjson'
+local has_cjson, json = pcall(require, 'cjson')
+if not has_cjson then
+  json = require 'dkjson'
+end
 
 -- Parse CLI args
 local path_a, path_b

@@ -3,7 +3,10 @@
 -- extract-queries.lua: scan histdb history for histdb invocations
 -- and extract the SQL queries from them.
 
-local json = require 'dkjson'
+local has_cjson, json = pcall(require, 'cjson')
+if not has_cjson then
+  json = require 'dkjson'
+end
 local sqlite3 = require 'lsqlite3'
 
 local db_path = os.getenv('HISTDB_PATH') or (os.getenv('HOME') .. '/.zsh_history.db')
