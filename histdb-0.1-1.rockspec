@@ -1,5 +1,5 @@
 package = "histdb"
-version = "scm-1"
+version = "0.1-1"
 
 source = {
    url = "git://github.com/hoelzro/histdb",
@@ -12,11 +12,11 @@ description = {
 
 dependencies = {
    "lua >= 5.4",
-   "lsqlite3",
+   -- "lsqlite3",
    "lpeg",
-   "cjson",
+   "lua-cjson",
    "dkjson",
-   "luaposix",
+   -- "luaposix",
 }
 
 build = {
