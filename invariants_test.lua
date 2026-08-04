@@ -248,6 +248,34 @@ AND   entry LIKE '%vim%'
     ]],
   },
 
+  -- entry MATCH with punctuation should work with the optional trigram index
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE entry MATCH 'README.md'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   entry LIKE '%README.md%'
+    ]],
+    unordered = true,
+  },
+
+  -- entry MATCH with a short token should fall back to LIKE because trigram FTS cannot answer it
+  test {
+    vtab_sql = "SELECT timestamp, entry FROM h WHERE entry MATCH 'ls'",
+    direct_sql = [[
+SELECT
+  DATETIME(timestamp, 'unixepoch', 'localtime') AS timestamp,
+  entry
+FROM history
+WHERE TYPEOF(timestamp) = 'integer'
+AND   entry LIKE '%ls%'
+    ]],
+    unordered = true,
+  },
+
   -- cwd MATCH ... test
   test {
     vtab_sql = "SELECT timestamp, entry FROM h WHERE cwd MATCH 'rob'",

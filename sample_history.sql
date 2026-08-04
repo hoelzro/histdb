@@ -27,3 +27,7 @@ INSERT INTO history (hostname, session_id, timestamp, history_id, cwd, entry, du
   ('host1', 'aaa11111-2222-3333-4444-555566667777', strftime('%s','now','-5 days'), 60001, '/home/rob/docs', 'edit README.md', 120, 0),
   ('host1', 'aaa11111-2222-3333-4444-555566667777', strftime('%s','now','-15 days'), 60002, '/home/rob/src', 'edit main.lua', 60, 0),
   ('host1', 'bbb22222-3333-4444-5555-666677778888', strftime('%s','now','-50 days'), 60003, '/home/rob/src', 'edit init.lua', 90, 0);
+
+CREATE VIRTUAL TABLE history_entry_trigram_idx
+USING fts5(entry, content='history', content_rowid='rowid', tokenize='trigram');
+INSERT INTO history_entry_trigram_idx(history_entry_trigram_idx) VALUES('rebuild');

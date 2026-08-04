@@ -26,14 +26,104 @@ local function timestamp_match_expr(context, op, params, expr)
   return string.format("timestamp BETWEEN %s AND %s", add_param(params, start_time), add_param(params, end_time))
 end
 
+local function fts5_quote_phrase(s)
+  return '"' .. string.gsub(s, '"', '""') .. '"'
+end
+
+local function count_recent_timestamp_matches(params, patterns)
+  local where_pieces = {}
+  local bindings = { params.session_id }
+
+  for i = 1, #patterns do
+    where_pieces[#where_pieces + 1] = 'entry LIKE ?'
+    bindings[#bindings + 1] = patterns[i]
+  end
+
+  local sql = [[
+    WITH recent AS (
+      SELECT entry
+      FROM history
+      WHERE session_id <> ? AND timestamp IS NOT NULL AND TYPEOF(timestamp) = 'integer'
+      ORDER BY timestamp DESC
+      LIMIT 20000
+    )
+    SELECT COUNT(*) FROM recent WHERE ]] .. table.concat(where_pieces, ' AND ')
+
+  local stmt = assert(params.db:prepare(sql))
+  stmt:bind_values(table.unpack(bindings))
+  local count
+  if stmt:step() == sqlite3.ROW then
+    count = stmt:get_value(0)
+  end
+  stmt:finalize()
+
+  return count or 0
+end
+
+local function token_has_trigram(token)
+  local len = utf8.len(token)
+  if len then
+    return len >= 3
+  end
+
+  -- Invalid UTF-8: fall back to byte length.
+  return #token >= 3
+end
+
+local function should_use_entry_trigram_idx(params, tokens, patterns)
+  if not params.use_entry_trigram_idx then
+    return false
+  end
+
+  -- The FTS5 trigram tokenizer cannot answer shorter-than-trigram searches.
+  for i = 1, #tokens do
+    if not token_has_trigram(tokens[i]) then
+      return false
+    end
+  end
+
+  -- For `ORDER BY timestamp DESC LIMIT ...`, common short command terms are
+  -- faster via the timestamp index because SQLite can stop as soon as the
+  -- virtual-table cursor has yielded enough rows.  Only pay for the recent-row
+  -- probe when the search contains a long/opaque token that is more likely to
+  -- be sparse.
+  if params.order_by_timestamp_desc then
+    local max_token_len = 0
+    for i = 1, #tokens do
+      max_token_len = math.max(max_token_len, utf8.len(tokens[i]) or #tokens[i])
+    end
+
+    if max_token_len < 12 then
+      return false
+    end
+
+    return count_recent_timestamp_matches(params, patterns) < 100
+  end
+
+  return true
+end
+
 local function entry_match_expr(context, op, params, expr)
   local conditions = {}
+  local tokens = {}
+  local patterns = {}
+  local fts_tokens = {}
+
   for token in string.gmatch(expr, '(%S+)') do
-    local placeholder = add_param(params, '%' .. token .. '%')
+    local pattern = '%' .. token .. '%'
+    local placeholder = add_param(params, pattern)
     conditions[#conditions+1] = 'entry LIKE ' .. placeholder
+    tokens[#tokens + 1] = token
+    patterns[#patterns + 1] = pattern
+    fts_tokens[#fts_tokens + 1] = fts5_quote_phrase(token)
   end
 
   if #conditions > 0 then
+    if should_use_entry_trigram_idx(params, tokens, patterns) then
+      local fts_placeholder = add_param(params, table.concat(fts_tokens, ' '))
+      table.insert(conditions, 1, 'history.rowid IN (SELECT rowid FROM history_entry_trigram_idx WHERE history_entry_trigram_idx MATCH ' .. fts_placeholder .. ')')
+    end
+
     return '(' .. table.concat(conditions, ' AND ') .. ')'
   end
 end
@@ -176,6 +266,14 @@ for i = 0, #SCHEMA do
   end
 end
 
+local function table_exists(db, name)
+  local stmt = assert(db:prepare "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+  stmt:bind_values(name)
+  local exists = stmt:step() == sqlite3.ROW
+  stmt:finalize()
+  return exists
+end
+
 function mod.connect(db, args)
   local debug = false
 
@@ -195,9 +293,12 @@ function mod.connect(db, args)
   local create_table = 'CREATE TABLE _ (\n' .. table.concat(columns, ',\n') .. '\n)'
   assert(db:declare_vtab(create_table))
 
+  local lua_db = sqlite3.open_ptr(db:get_ptr())
+
   return {
-    db = sqlite3.open_ptr(db:get_ptr()),
+    db = lua_db,
     debug = debug,
+    use_entry_trigram_idx = table_exists(lua_db, 'history_entry_trigram_idx'),
   }
 end
 
@@ -344,7 +445,12 @@ function mod.filter(cursor, index_num, index_name, args)
   local order_by_clause = ''
   local limit_clause = ''
   local offset_clause = ''
-  local params = {}
+  local params = {
+    db = cursor.vtab.db,
+    session_id = tostring(session_id),
+    use_entry_trigram_idx = cursor.vtab.use_entry_trigram_idx,
+    order_by_timestamp_desc = index_name and string.find(index_name, 'order:timestamp:DESC', 1, true) ~= nil,
+  }
 
   if index_name then
     --  index_name is built up within best_index above, and is composed of semicolon-separated hints.  Each hint is composed of a hint type and that hint's arguments, separated by colons
