@@ -1,3 +1,4 @@
 /histdb.lua
 /lua-vtable.so
 /sample_history.db
+/bench/bench.db
